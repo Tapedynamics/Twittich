@@ -97,6 +97,43 @@ class SocketService {
       this.socket?.off('live-ended');
     }
   }
+
+  // WebRTC Signaling
+  sendWebRTCOffer(sessionId: string, offer: RTCSessionDescriptionInit) {
+    this.socket?.emit('webrtc-offer', { sessionId, offer });
+  }
+
+  sendWebRTCAnswer(sessionId: string, answer: RTCSessionDescriptionInit, targetId: string) {
+    this.socket?.emit('webrtc-answer', { sessionId, answer, targetId });
+  }
+
+  sendICECandidate(sessionId: string, candidate: RTCIceCandidateInit, targetId?: string) {
+    this.socket?.emit('webrtc-ice-candidate', { sessionId, candidate, targetId });
+  }
+
+  onWebRTCOffer(callback: (data: { offer: RTCSessionDescriptionInit; senderId: string }) => void) {
+    this.socket?.on('webrtc-offer', callback);
+  }
+
+  onWebRTCAnswer(callback: (data: { answer: RTCSessionDescriptionInit; senderId: string }) => void) {
+    this.socket?.on('webrtc-answer', callback);
+  }
+
+  onICECandidate(callback: (data: { candidate: RTCIceCandidateInit; senderId: string }) => void) {
+    this.socket?.on('webrtc-ice-candidate', callback);
+  }
+
+  offWebRTCOffer() {
+    this.socket?.off('webrtc-offer');
+  }
+
+  offWebRTCAnswer() {
+    this.socket?.off('webrtc-answer');
+  }
+
+  offICECandidate() {
+    this.socket?.off('webrtc-ice-candidate');
+  }
 }
 
 export const socketService = new SocketService();

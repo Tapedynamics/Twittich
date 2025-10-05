@@ -1,23 +1,98 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { socketService } from '../lib/socket';
 
 interface ScreenShareProps {
   isAdmin: boolean;
   sessionId: string;
 }
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
+};
+
 export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState('');
+  const [isReceivingStream, setIsReceivingStream] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setupViewerListeners();
+    }
+
+    return () => {
+      cleanup();
+    };
+  }, [sessionId, isAdmin]);
+
+  const cleanup = () => {
+    peerConnectionsRef.current.forEach((pc) => pc.close());
+    peerConnectionsRef.current.clear();
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    socketService.offWebRTCOffer();
+    socketService.offWebRTCAnswer();
+    socketService.offICECandidate();
+  };
+
+  const setupViewerListeners = () => {
+    // Viewer receives offer from broadcaster
+    socketService.onWebRTCOffer(async ({ offer, senderId }) => {
+      console.log('Viewer received offer from broadcaster:', senderId);
+
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      peerConnectionsRef.current.set(senderId, pc);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socketService.sendICECandidate(sessionId, event.candidate, senderId);
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log('Viewer received track:', event.streams[0]);
+        if (videoRef.current && event.streams[0]) {
+          videoRef.current.srcObject = event.streams[0];
+          setIsReceivingStream(true);
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socketService.sendWebRTCAnswer(sessionId, answer, senderId);
+    });
+
+    // Viewer receives ICE candidates
+    socketService.onICECandidate(async ({ candidate, senderId }) => {
+      const pc = peerConnectionsRef.current.get(senderId);
+      if (pc) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+  };
 
   const startScreenShare = async () => {
     try {
-      console.log('Requesting screen share...');
+      console.log('Broadcaster: Starting screen share...');
 
-      // Request screen sharing permission with audio
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
@@ -30,15 +105,17 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         },
       });
 
-      console.log('Screen share granted:', stream);
-      console.log('Video tracks:', stream.getVideoTracks());
-      console.log('Audio tracks:', stream.getAudioTracks());
-
       streamRef.current = stream;
       setIsSharing(true);
       setError('');
 
-      // Handle when user stops sharing via browser UI
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+
+      // Setup WebRTC for all viewers
+      setupBroadcasterConnection();
+
       stream.getVideoTracks()[0].addEventListener('ended', () => {
         console.log('Screen share ended by user');
         stopScreenShare();
@@ -49,51 +126,68 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     }
   };
 
-  const stopScreenShare = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+  const setupBroadcasterConnection = async () => {
+    if (!streamRef.current) return;
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
+    // Listen for answers from viewers
+    socketService.onWebRTCAnswer(async ({ answer, senderId }) => {
+      console.log('Broadcaster received answer from viewer:', senderId);
+      const pc = peerConnectionsRef.current.get(senderId);
+      if (pc) {
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      }
+    });
 
-    setIsSharing(false);
+    // Listen for ICE candidates from viewers
+    socketService.onICECandidate(async ({ candidate, senderId }) => {
+      const pc = peerConnectionsRef.current.get(senderId);
+      if (pc) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+
+    // Create offer for new viewers (broadcast to all in room)
+    await createOfferForViewers();
   };
 
-  useEffect(() => {
-    return () => {
-      stopScreenShare();
+  const createOfferForViewers = async () => {
+    if (!streamRef.current) return;
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const tempId = 'broadcast-' + Date.now();
+    peerConnectionsRef.current.set(tempId, pc);
+
+    streamRef.current.getTracks().forEach((track) => {
+      pc.addTrack(track, streamRef.current!);
+    });
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socketService.sendICECandidate(sessionId, event.candidate);
+      }
     };
-  }, []);
 
-  // Assign stream to video when sharing starts
-  useEffect(() => {
-    if (isSharing && streamRef.current && videoRef.current) {
-      console.log('Assigning stream to video element');
-      videoRef.current.srcObject = streamRef.current;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
 
-      videoRef.current.onloadedmetadata = async () => {
-        console.log('Video metadata loaded in useEffect');
-        try {
-          await videoRef.current?.play();
-          console.log('Video playing successfully in useEffect');
-        } catch (err) {
-          console.error('Error playing video in useEffect:', err);
-        }
-      };
-    }
-  }, [isSharing]);
+    console.log('Broadcaster sending offer to all viewers');
+    socketService.sendWebRTCOffer(sessionId, offer);
+  };
+
+  const stopScreenShare = () => {
+    cleanup();
+    setIsSharing(false);
+    setIsReceivingStream(false);
+  };
 
   return (
     <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
-      {isSharing ? (
+      {(isSharing || isReceivingStream) ? (
         <video
           ref={videoRef}
           autoPlay
           playsInline
-          muted={false}
+          muted={isAdmin}
           className="w-full h-full object-contain"
         />
       ) : (
