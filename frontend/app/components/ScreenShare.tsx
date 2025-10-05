@@ -93,10 +93,21 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
       peer.on('stream', (remoteStream) => {
         console.log('Viewer received stream:', remoteStream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = remoteStream;
-          setIsReceivingStream(true);
-        }
+        console.log('Video ref current:', videoRef.current);
+
+        // Set state first to trigger re-render and create video element
+        setIsReceivingStream(true);
+
+        // Then assign stream after a short delay to ensure video element exists
+        setTimeout(() => {
+          if (videoRef.current) {
+            console.log('Assigning stream to video element');
+            videoRef.current.srcObject = remoteStream;
+            videoRef.current.play().catch(err => console.error('Play error:', err));
+          } else {
+            console.error('Video ref still null after timeout!');
+          }
+        }, 100);
       });
 
       peer.on('error', (err) => {
