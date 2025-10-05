@@ -19,4 +19,4 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://temporary.com
+        value: https://twittich.vercel.app
