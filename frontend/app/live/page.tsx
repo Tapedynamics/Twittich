@@ -42,8 +42,13 @@ export default function LivePage() {
       return;
     }
 
+    console.log('Live page: Initializing with user:', user);
+    console.log('Live page: Access token:', accessToken ? 'Present' : 'Missing');
+
     loadLiveSession();
-    socketService.connect(accessToken || undefined);
+
+    const socket = socketService.connect(accessToken || undefined);
+    console.log('Live page: Socket connected:', socket?.connected);
 
     return () => {
       if (liveSession) {
@@ -143,7 +148,25 @@ export default function LivePage() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !liveSession || !user) return;
+
+    console.log('sendMessage called - Input:', messageInput.trim());
+    console.log('sendMessage called - LiveSession:', liveSession);
+    console.log('sendMessage called - User:', user);
+
+    if (!messageInput.trim()) {
+      console.warn('Message is empty');
+      return;
+    }
+
+    if (!liveSession) {
+      console.error('No live session found');
+      return;
+    }
+
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
 
     console.log('Sending chat message:', {
       sessionId: liveSession.id,
