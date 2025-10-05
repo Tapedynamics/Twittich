@@ -116,13 +116,16 @@ export default function PostCard({ post }: { post: Post }) {
       <p className="text-[var(--bull-green)] mb-4 whitespace-pre-wrap leading-relaxed">{post.content}</p>
 
       {/* Media */}
-      {post.mediaUrls && (
-        <div className="mb-4">
-          <img
-            src={post.mediaUrls}
-            alt="Post media"
-            className="rounded-lg w-full max-h-[500px] object-contain"
-          />
+      {post.mediaUrls && post.mediaUrls.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {post.mediaUrls.map((url, idx) => (
+            <img
+              key={idx}
+              src={url}
+              alt={`Post media ${idx + 1}`}
+              className="rounded-lg w-full max-h-[500px] object-contain"
+            />
+          ))}
         </div>
       )}
 
