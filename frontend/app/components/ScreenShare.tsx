@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import SimplePeer from 'simple-peer';
 import { socketService } from '../lib/socket';
 
 interface ScreenShareProps {
@@ -8,20 +9,13 @@ interface ScreenShareProps {
   sessionId: string;
 }
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
-
 export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState('');
   const [isReceivingStream, setIsReceivingStream] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const peerRef = useRef<SimplePeer.Instance | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -33,7 +27,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     };
   }, [sessionId, isAdmin]);
 
-  // Assign stream to video element when sharing starts
+  // Assign stream to video when sharing starts
   useEffect(() => {
     if (isSharing && streamRef.current && videoRef.current && isAdmin) {
       console.log('Assigning broadcaster stream to video element');
@@ -52,8 +46,10 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   }, [isSharing, isAdmin]);
 
   const cleanup = () => {
-    peerConnectionsRef.current.forEach((pc) => pc.close());
-    peerConnectionsRef.current.clear();
+    if (peerRef.current) {
+      peerRef.current.destroy();
+      peerRef.current = null;
+    }
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -70,39 +66,53 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupViewerListeners = () => {
-    // Viewer receives offer from broadcaster
-    socketService.onWebRTCOffer(async ({ offer, senderId }) => {
+    console.log('Setting up viewer listeners');
+
+    // Viewer receives signal (offer) from broadcaster
+    socketService.onWebRTCOffer(({ offer, senderId }) => {
       console.log('Viewer received offer from broadcaster:', senderId);
 
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-      peerConnectionsRef.current.set(senderId, pc);
+      // Create peer as receiver (initiator: false)
+      const peer = new SimplePeer({
+        initiator: false,
+        trickle: true,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        },
+      });
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socketService.sendICECandidate(sessionId, event.candidate, senderId);
-        }
-      };
+      peerRef.current = peer;
 
-      pc.ontrack = (event) => {
-        console.log('Viewer received track:', event.streams[0]);
-        if (videoRef.current && event.streams[0]) {
-          videoRef.current.srcObject = event.streams[0];
+      peer.on('signal', (signal) => {
+        console.log('Viewer sending answer');
+        socketService.sendWebRTCAnswer(sessionId, signal, senderId);
+      });
+
+      peer.on('stream', (remoteStream) => {
+        console.log('Viewer received stream:', remoteStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = remoteStream;
           setIsReceivingStream(true);
         }
-      };
+      });
 
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        setError('Errore nella connessione peer');
+      });
 
-      socketService.sendWebRTCAnswer(sessionId, answer, senderId);
+      // Signal the peer with the offer
+      peer.signal(offer);
     });
 
-    // Viewer receives ICE candidates
-    socketService.onICECandidate(async ({ candidate, senderId }) => {
-      const pc = peerConnectionsRef.current.get(senderId);
-      if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    // Viewer receives answer from broadcaster (ICE candidates)
+    socketService.onWebRTCAnswer(({ answer }) => {
+      console.log('Viewer received answer');
+      if (peerRef.current) {
+        peerRef.current.signal(answer);
       }
     });
   };
@@ -131,8 +141,38 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       setIsSharing(true);
       setError('');
 
-      // Setup WebRTC for all viewers
-      setupBroadcasterConnection();
+      // Create peer as initiator
+      const peer = new SimplePeer({
+        initiator: true,
+        trickle: true,
+        stream: stream,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        },
+      });
+
+      peerRef.current = peer;
+
+      peer.on('signal', (signal) => {
+        console.log('Broadcaster sending offer');
+        socketService.sendWebRTCOffer(sessionId, signal);
+      });
+
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        setError('Errore nella connessione peer');
+      });
+
+      // Listen for answers from viewers
+      socketService.onWebRTCAnswer(({ answer }) => {
+        console.log('Broadcaster received answer from viewer');
+        if (peerRef.current) {
+          peerRef.current.signal(answer);
+        }
+      });
 
       stream.getVideoTracks()[0].addEventListener('ended', () => {
         console.log('Screen share ended by user');
@@ -142,54 +182,6 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       console.error('Error starting screen share:', err);
       setError(err.message || 'Impossibile condividere lo schermo');
     }
-  };
-
-  const setupBroadcasterConnection = async () => {
-    if (!streamRef.current) return;
-
-    // Listen for answers from viewers
-    socketService.onWebRTCAnswer(async ({ answer, senderId }) => {
-      console.log('Broadcaster received answer from viewer:', senderId);
-      const pc = peerConnectionsRef.current.get(senderId);
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      }
-    });
-
-    // Listen for ICE candidates from viewers
-    socketService.onICECandidate(async ({ candidate, senderId }) => {
-      const pc = peerConnectionsRef.current.get(senderId);
-      if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      }
-    });
-
-    // Create offer for new viewers (broadcast to all in room)
-    await createOfferForViewers();
-  };
-
-  const createOfferForViewers = async () => {
-    if (!streamRef.current) return;
-
-    const pc = new RTCPeerConnection(ICE_SERVERS);
-    const tempId = 'broadcast-' + Date.now();
-    peerConnectionsRef.current.set(tempId, pc);
-
-    streamRef.current.getTracks().forEach((track) => {
-      pc.addTrack(track, streamRef.current!);
-    });
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        socketService.sendICECandidate(sessionId, event.candidate);
-      }
-    };
-
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    console.log('Broadcaster sending offer to all viewers');
-    socketService.sendWebRTCOffer(sessionId, offer);
   };
 
   const stopScreenShare = () => {
