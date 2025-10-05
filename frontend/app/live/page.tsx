@@ -70,9 +70,11 @@ export default function LivePage() {
 
   useEffect(() => {
     if (liveSession) {
+      console.log('Joining live session:', liveSession.id);
       socketService.joinLiveSession(liveSession.id);
 
       const handleViewersCount = (count: number) => {
+        console.log('Viewers count updated:', count);
         setViewersCount(count);
       };
 
