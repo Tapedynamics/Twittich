@@ -121,7 +121,7 @@ io.on('connection', (socket) => {
   });
 
   // WebRTC Signaling
-  socket.on('webrtc-offer', (data: { sessionId: string; offer: RTCSessionDescriptionInit }) => {
+  socket.on('webrtc-offer', (data: { sessionId: string; offer: any }) => {
     console.log('Broadcasting WebRTC offer to session:', data.sessionId);
     socket.to(`live-${data.sessionId}`).emit('webrtc-offer', {
       offer: data.offer,
@@ -129,7 +129,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('webrtc-answer', (data: { sessionId: string; answer: RTCSessionDescriptionInit; targetId: string }) => {
+  socket.on('webrtc-answer', (data: { sessionId: string; answer: any; targetId: string }) => {
     console.log('Sending WebRTC answer to:', data.targetId);
     io.to(data.targetId).emit('webrtc-answer', {
       answer: data.answer,
@@ -137,7 +137,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('webrtc-ice-candidate', (data: { sessionId: string; candidate: RTCIceCandidateInit; targetId?: string }) => {
+  socket.on('webrtc-ice-candidate', (data: { sessionId: string; candidate: any; targetId?: string }) => {
     if (data.targetId) {
       io.to(data.targetId).emit('webrtc-ice-candidate', {
         candidate: data.candidate,
