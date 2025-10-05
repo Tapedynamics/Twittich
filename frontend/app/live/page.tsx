@@ -32,11 +32,22 @@ export default function LivePage() {
   const router = useRouter();
   const [liveSession, setLiveSession] = useState<LiveSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [viewersCount, setViewersCount] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
 
+  // Wait for auth to be ready
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setAuthReady(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!authReady) return;
+
     if (!isAuthenticated) {
       router.push('/login');
       return;
@@ -55,7 +66,7 @@ export default function LivePage() {
         socketService.leaveLiveSession(liveSession.id);
       }
     };
-  }, [isAuthenticated, router, accessToken]);
+  }, [authReady, isAuthenticated, router, accessToken]);
 
   useEffect(() => {
     if (liveSession) {
@@ -288,7 +299,8 @@ export default function LivePage() {
                 />
                 <button
                   type="submit"
-                  className="btn-bull px-4 py-2 rounded-lg font-bold"
+                  disabled={!messageInput.trim()}
+                  className="btn-bull px-4 py-2 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   →
                 </button>
