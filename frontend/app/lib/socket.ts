@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import SimplePeer from 'simple-peer';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
 
@@ -99,27 +100,27 @@ class SocketService {
   }
 
   // WebRTC Signaling
-  sendWebRTCOffer(sessionId: string, offer: RTCSessionDescriptionInit) {
+  sendWebRTCOffer(sessionId: string, offer: SimplePeer.SignalData) {
     this.socket?.emit('webrtc-offer', { sessionId, offer });
   }
 
-  sendWebRTCAnswer(sessionId: string, answer: RTCSessionDescriptionInit, targetId: string) {
+  sendWebRTCAnswer(sessionId: string, answer: SimplePeer.SignalData, targetId: string) {
     this.socket?.emit('webrtc-answer', { sessionId, answer, targetId });
   }
 
-  sendICECandidate(sessionId: string, candidate: RTCIceCandidateInit, targetId?: string) {
+  sendICECandidate(sessionId: string, candidate: SimplePeer.SignalData, targetId?: string) {
     this.socket?.emit('webrtc-ice-candidate', { sessionId, candidate, targetId });
   }
 
-  onWebRTCOffer(callback: (data: { offer: RTCSessionDescriptionInit; senderId: string }) => void) {
+  onWebRTCOffer(callback: (data: { offer: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-offer', callback);
   }
 
-  onWebRTCAnswer(callback: (data: { answer: RTCSessionDescriptionInit; senderId: string }) => void) {
+  onWebRTCAnswer(callback: (data: { answer: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-answer', callback);
   }
 
-  onICECandidate(callback: (data: { candidate: RTCIceCandidateInit; senderId: string }) => void) {
+  onICECandidate(callback: (data: { candidate: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-ice-candidate', callback);
   }
 
