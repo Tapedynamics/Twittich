@@ -33,6 +33,24 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     };
   }, [sessionId, isAdmin]);
 
+  // Assign stream to video element when sharing starts
+  useEffect(() => {
+    if (isSharing && streamRef.current && videoRef.current && isAdmin) {
+      console.log('Assigning broadcaster stream to video element');
+      videoRef.current.srcObject = streamRef.current;
+
+      videoRef.current.onloadedmetadata = async () => {
+        console.log('Video metadata loaded');
+        try {
+          await videoRef.current?.play();
+          console.log('Video playing successfully');
+        } catch (err) {
+          console.error('Error playing video:', err);
+        }
+      };
+    }
+  }, [isSharing, isAdmin]);
+
   const cleanup = () => {
     peerConnectionsRef.current.forEach((pc) => pc.close());
     peerConnectionsRef.current.clear();
@@ -105,13 +123,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         },
       });
 
+      console.log('Stream acquired:', stream);
+      console.log('Video tracks:', stream.getVideoTracks());
+      console.log('Audio tracks:', stream.getAudioTracks());
+
       streamRef.current = stream;
       setIsSharing(true);
       setError('');
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
 
       // Setup WebRTC for all viewers
       setupBroadcasterConnection();
