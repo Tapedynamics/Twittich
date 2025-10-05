@@ -6,7 +6,7 @@ import { postsAPI } from '../lib/api';
 interface Post {
   id: string;
   content: string;
-  mediaUrls: string | null;
+  mediaUrls: string[];
   type: string;
   likesCount: number;
   commentsCount: number;
