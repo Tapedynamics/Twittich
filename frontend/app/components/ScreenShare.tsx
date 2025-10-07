@@ -411,29 +411,29 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       {(isSharing || isReceivingStream) && (
         <button
           onClick={toggleFullscreen}
-          className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-3 rounded-lg font-semibold transition-colors z-20 border-2 border-[var(--cyan-neon)]"
+          className="absolute bottom-4 right-4 bg-black/70 hover:bg-black/90 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors z-20 border border-[var(--cyan-neon)]"
           title={isFullscreen ? 'Esci da schermo intero' : 'Schermo intero'}
         >
-          {isFullscreen ? '🗙 Exit' : '⛶ Fullscreen'}
+          {isFullscreen ? '🗙' : '⛶'}
         </button>
       )}
 
       {/* Control buttons for broadcaster */}
       {isSharing && isAdmin && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-3">
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
           <button
             onClick={toggleMicMute}
             className={`${
               isMicMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
-            } text-white px-6 py-2 rounded-lg font-semibold transition-colors`}
+            } text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors`}
           >
-            {isMicMuted ? '🎤 Unmute Mic' : '🔇 Mute Mic'}
+            {isMicMuted ? '🎤' : '🔇'}
           </button>
           <button
             onClick={stopScreenShare}
-            className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold"
+            className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 text-sm font-semibold"
           >
-            ⏹️ Ferma Condivisione
+            ⏹️
           </button>
         </div>
       )}
