@@ -190,30 +190,68 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     try {
       console.log('Broadcaster: Starting screen share...');
 
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      // First, get display media with audio
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
         video: {
           cursor: 'always',
           displaySurface: 'monitor',
         } as any,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: 44100,
-        },
+        audio: true, // Simplified to just request audio
       });
 
-      console.log('Stream acquired:', stream);
-      console.log('Video tracks:', stream.getVideoTracks());
-      console.log('Audio tracks:', stream.getAudioTracks());
+      console.log('Display stream acquired:', displayStream);
+      console.log('Video tracks:', displayStream.getVideoTracks());
+      console.log('Audio tracks (display):', displayStream.getAudioTracks());
 
-      streamRef.current = stream;
+      // Create a combined stream
+      const combinedStream = new MediaStream();
+
+      // Add video track from display
+      displayStream.getVideoTracks().forEach(track => {
+        combinedStream.addTrack(track);
+        console.log('Added video track:', track.label);
+      });
+
+      // Add audio track from display if available
+      displayStream.getAudioTracks().forEach(track => {
+        combinedStream.addTrack(track);
+        console.log('Added display audio track:', track.label, track.enabled);
+      });
+
+      // Try to get microphone audio as well (optional)
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          }
+        });
+        micStream.getAudioTracks().forEach(track => {
+          combinedStream.addTrack(track);
+          console.log('Added microphone track:', track.label, track.enabled);
+        });
+      } catch (micErr) {
+        console.warn('Could not get microphone audio:', micErr);
+        // Continue without microphone
+      }
+
+      console.log('Combined stream tracks:', combinedStream.getTracks().map(t => ({
+        kind: t.kind,
+        label: t.label,
+        enabled: t.enabled,
+        muted: t.muted,
+        readyState: t.readyState
+      })));
+
+      streamRef.current = combinedStream;
       setIsSharing(true);
       setError('');
 
       // Notify backend that stream is ready
       socketService.broadcasterReady(sessionId);
 
-      stream.getVideoTracks()[0].addEventListener('ended', () => {
+      displayStream.getVideoTracks()[0].addEventListener('ended', () => {
         console.log('Screen share ended by user');
         stopScreenShare();
       });
@@ -236,7 +274,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           ref={videoRef}
           autoPlay
           playsInline
-          muted={isAdmin}
+          muted={false}
           className="w-full h-full object-contain"
         />
       ) : (
