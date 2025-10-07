@@ -100,8 +100,16 @@ class SocketService {
   }
 
   // WebRTC Signaling
-  sendWebRTCOffer(sessionId: string, offer: SimplePeer.SignalData) {
-    this.socket?.emit('webrtc-offer', { sessionId, offer });
+  broadcasterReady(sessionId: string) {
+    this.socket?.emit('broadcaster-ready', { sessionId });
+  }
+
+  requestStream(sessionId: string) {
+    this.socket?.emit('request-stream', { sessionId });
+  }
+
+  sendWebRTCOffer(sessionId: string, offer: SimplePeer.SignalData, targetId: string) {
+    this.socket?.emit('webrtc-offer', { sessionId, offer, targetId });
   }
 
   sendWebRTCAnswer(sessionId: string, answer: SimplePeer.SignalData, targetId: string) {
@@ -110,6 +118,10 @@ class SocketService {
 
   sendICECandidate(sessionId: string, candidate: SimplePeer.SignalData, targetId?: string) {
     this.socket?.emit('webrtc-ice-candidate', { sessionId, candidate, targetId });
+  }
+
+  onViewerJoined(callback: (data: { viewerId: string }) => void) {
+    this.socket?.on('viewer-joined', callback);
   }
 
   onWebRTCOffer(callback: (data: { offer: SimplePeer.SignalData; senderId: string }) => void) {
@@ -122,6 +134,10 @@ class SocketService {
 
   onICECandidate(callback: (data: { candidate: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-ice-candidate', callback);
+  }
+
+  offViewerJoined() {
+    this.socket?.off('viewer-joined');
   }
 
   offWebRTCOffer() {

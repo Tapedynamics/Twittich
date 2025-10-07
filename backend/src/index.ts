@@ -121,16 +121,38 @@ io.on('connection', (socket) => {
   });
 
   // WebRTC Signaling
-  socket.on('webrtc-offer', (data: { sessionId: string; offer: any }) => {
-    console.log('Broadcasting WebRTC offer to session:', data.sessionId);
-    socket.to(`live-${data.sessionId}`).emit('webrtc-offer', {
+  socket.on('broadcaster-ready', (data: { sessionId: string }) => {
+    console.log('Broadcaster ready for session:', data.sessionId);
+    // Mark this socket as the broadcaster for this session
+    socket.data.broadcasterSession = data.sessionId;
+  });
+
+  socket.on('request-stream', (data: { sessionId: string }) => {
+    console.log('Viewer requesting stream for session:', data.sessionId);
+    // Find the broadcaster for this session
+    const sockets = Array.from(io.sockets.sockets.values());
+    const broadcaster = sockets.find(s => s.data.broadcasterSession === data.sessionId);
+
+    if (broadcaster) {
+      console.log('Found broadcaster, notifying them of new viewer:', socket.id);
+      broadcaster.emit('viewer-joined', {
+        viewerId: socket.id,
+      });
+    } else {
+      console.warn('No broadcaster found for session:', data.sessionId);
+    }
+  });
+
+  socket.on('webrtc-offer', (data: { sessionId: string; offer: any; targetId: string }) => {
+    console.log('Sending WebRTC offer to viewer:', data.targetId);
+    io.to(data.targetId).emit('webrtc-offer', {
       offer: data.offer,
       senderId: socket.id,
     });
   });
 
   socket.on('webrtc-answer', (data: { sessionId: string; answer: any; targetId: string }) => {
-    console.log('Sending WebRTC answer to:', data.targetId);
+    console.log('Sending WebRTC answer to broadcaster:', data.targetId);
     io.to(data.targetId).emit('webrtc-answer', {
       answer: data.answer,
       senderId: socket.id,

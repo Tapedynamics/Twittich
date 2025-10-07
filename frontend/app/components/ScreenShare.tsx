@@ -16,10 +16,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<SimplePeer.Instance | null>(null);
+  const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
 
   useEffect(() => {
     if (!isAdmin) {
       setupViewerListeners();
+    } else {
+      setupBroadcasterListeners();
     }
 
     return () => {
@@ -46,10 +49,17 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   }, [isSharing, isAdmin]);
 
   const cleanup = () => {
+    // Clean up viewer peer
     if (peerRef.current) {
       peerRef.current.destroy();
       peerRef.current = null;
     }
+
+    // Clean up all broadcaster peers
+    peersRef.current.forEach((peer) => {
+      peer.destroy();
+    });
+    peersRef.current.clear();
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -63,12 +73,68 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     socketService.offWebRTCOffer();
     socketService.offWebRTCAnswer();
     socketService.offICECandidate();
+    socketService.offViewerJoined();
+  };
+
+  const setupBroadcasterListeners = () => {
+    console.log('Setting up broadcaster listeners');
+
+    // Broadcaster receives viewer join request
+    socketService.onViewerJoined(({ viewerId }) => {
+      console.log('Viewer joined, creating peer connection:', viewerId);
+
+      if (!streamRef.current) {
+        console.warn('Stream not ready yet, ignoring viewer join');
+        return;
+      }
+
+      // Create a new peer for this viewer
+      const peer = new SimplePeer({
+        initiator: true,
+        trickle: true,
+        stream: streamRef.current,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        },
+      });
+
+      peersRef.current.set(viewerId, peer);
+
+      peer.on('signal', (signal) => {
+        console.log('Broadcaster sending offer to viewer:', viewerId);
+        socketService.sendWebRTCOffer(sessionId, signal, viewerId);
+      });
+
+      peer.on('error', (err) => {
+        console.error('Broadcaster peer error for viewer', viewerId, err);
+        peersRef.current.delete(viewerId);
+      });
+
+      peer.on('close', () => {
+        console.log('Peer connection closed for viewer:', viewerId);
+        peersRef.current.delete(viewerId);
+      });
+    });
+
+    // Broadcaster receives answers from viewers
+    socketService.onWebRTCAnswer(({ answer, senderId }) => {
+      console.log('Broadcaster received answer from viewer:', senderId);
+      const peer = peersRef.current.get(senderId);
+      if (peer) {
+        peer.signal(answer);
+      } else {
+        console.warn('No peer found for viewer:', senderId);
+      }
+    });
   };
 
   const setupViewerListeners = () => {
     console.log('Setting up viewer listeners');
 
-    // Viewer receives signal (offer) from broadcaster
+    // Viewer receives offer from broadcaster
     socketService.onWebRTCOffer(({ offer, senderId }) => {
       console.log('Viewer received offer from broadcaster:', senderId);
 
@@ -87,18 +153,14 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       peerRef.current = peer;
 
       peer.on('signal', (signal) => {
-        console.log('Viewer sending answer');
+        console.log('Viewer sending answer to broadcaster');
         socketService.sendWebRTCAnswer(sessionId, signal, senderId);
       });
 
       peer.on('stream', (remoteStream) => {
         console.log('Viewer received stream:', remoteStream);
-        console.log('Video ref current:', videoRef.current);
-
-        // Set state first to trigger re-render and create video element
         setIsReceivingStream(true);
 
-        // Then assign stream after a short delay to ensure video element exists
         setTimeout(() => {
           if (videoRef.current) {
             console.log('Assigning stream to video element');
@@ -111,7 +173,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       });
 
       peer.on('error', (err) => {
-        console.error('Peer error:', err);
+        console.error('Viewer peer error:', err);
         setError('Errore nella connessione peer');
       });
 
@@ -119,13 +181,9 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       peer.signal(offer);
     });
 
-    // Viewer receives answer from broadcaster (ICE candidates)
-    socketService.onWebRTCAnswer(({ answer }) => {
-      console.log('Viewer received answer');
-      if (peerRef.current) {
-        peerRef.current.signal(answer);
-      }
-    });
+    // Request stream from broadcaster when component mounts
+    console.log('Viewer requesting stream from broadcaster');
+    socketService.requestStream(sessionId);
   };
 
   const startScreenShare = async () => {
@@ -152,38 +210,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       setIsSharing(true);
       setError('');
 
-      // Create peer as initiator
-      const peer = new SimplePeer({
-        initiator: true,
-        trickle: true,
-        stream: stream,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-          ],
-        },
-      });
-
-      peerRef.current = peer;
-
-      peer.on('signal', (signal) => {
-        console.log('Broadcaster sending offer');
-        socketService.sendWebRTCOffer(sessionId, signal);
-      });
-
-      peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        setError('Errore nella connessione peer');
-      });
-
-      // Listen for answers from viewers
-      socketService.onWebRTCAnswer(({ answer }) => {
-        console.log('Broadcaster received answer from viewer');
-        if (peerRef.current) {
-          peerRef.current.signal(answer);
-        }
-      });
+      // Notify backend that stream is ready
+      socketService.broadcasterReady(sessionId);
 
       stream.getVideoTracks()[0].addEventListener('ended', () => {
         console.log('Screen share ended by user');
