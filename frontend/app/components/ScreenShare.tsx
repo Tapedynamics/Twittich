@@ -21,15 +21,20 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const peerRef = useRef<SimplePeer.Instance | null>(null);
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const retryIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
-      setupViewerListeners();
+      const interval = setupViewerListeners();
+      retryIntervalRef.current = interval;
     } else {
       setupBroadcasterListeners();
     }
 
     return () => {
+      if (retryIntervalRef.current) {
+        clearInterval(retryIntervalRef.current);
+      }
       cleanup();
     };
   }, [sessionId, isAdmin]);
@@ -78,6 +83,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     socketService.offWebRTCAnswer();
     socketService.offICECandidate();
     socketService.offViewerJoined();
+    socketService.offBroadcasterReady();
   };
 
   const setupBroadcasterListeners = () => {
@@ -185,9 +191,27 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       peer.signal(offer);
     });
 
-    // Request stream from broadcaster when component mounts
+    // Listen for broadcaster ready event
+    socketService.onBroadcasterReady(() => {
+      console.log('Broadcaster is now ready, requesting stream');
+      socketService.requestStream(sessionId);
+    });
+
+    // Retry requesting stream every 3 seconds until we receive it
     console.log('Viewer requesting stream from broadcaster');
     socketService.requestStream(sessionId);
+
+    const retryInterval = setInterval(() => {
+      if (!isReceivingStream) {
+        console.log('Retrying stream request...');
+        socketService.requestStream(sessionId);
+      } else {
+        clearInterval(retryInterval);
+      }
+    }, 3000);
+
+    // Store interval ref for cleanup
+    return retryInterval;
   };
 
   const startScreenShare = async () => {

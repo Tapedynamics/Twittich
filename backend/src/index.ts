@@ -125,6 +125,10 @@ io.on('connection', (socket) => {
     console.log('Broadcaster ready for session:', data.sessionId);
     // Mark this socket as the broadcaster for this session
     socket.data.broadcasterSession = data.sessionId;
+
+    // Notify all viewers in this session that broadcaster is ready
+    socket.to(`live-${data.sessionId}`).emit('broadcaster-ready');
+    console.log('Notified viewers that broadcaster is ready');
   });
 
   socket.on('request-stream', (data: { sessionId: string }) => {

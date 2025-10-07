@@ -124,6 +124,10 @@ class SocketService {
     this.socket?.on('viewer-joined', callback);
   }
 
+  onBroadcasterReady(callback: () => void) {
+    this.socket?.on('broadcaster-ready', callback);
+  }
+
   onWebRTCOffer(callback: (data: { offer: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-offer', callback);
   }
@@ -138,6 +142,10 @@ class SocketService {
 
   offViewerJoined() {
     this.socket?.off('viewer-joined');
+  }
+
+  offBroadcasterReady() {
+    this.socket?.off('broadcaster-ready');
   }
 
   offWebRTCOffer() {
