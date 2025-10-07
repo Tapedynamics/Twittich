@@ -11,9 +11,11 @@ const api = axios.create({
 
 // Add token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -24,12 +26,14 @@ api.interceptors.response.use(
   async (error) => {
     if (error.response?.status === 403) {
       // Token expired, try refresh
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (refreshToken) {
-        // Implement refresh logic here
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (refreshToken) {
+          // Implement refresh logic here
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
