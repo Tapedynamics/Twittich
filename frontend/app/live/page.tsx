@@ -70,10 +70,7 @@ export default function LivePage() {
     socketService.onLiveStarted(handleLiveStarted);
 
     return () => {
-      if (liveSession) {
-        socketService.leaveLiveSession(liveSession.id);
-      }
-      socketService.offLiveStarted(handleLiveStarted);
+      socketService.offLiveStarted();
     };
   }, [authReady, isAuthenticated, router, accessToken]);
 
