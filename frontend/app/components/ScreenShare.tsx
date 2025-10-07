@@ -13,10 +13,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState('');
   const [isReceivingStream, setIsReceivingStream] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<SimplePeer.Instance | null>(null);
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -227,10 +229,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
             autoGainControl: true,
           }
         });
-        micStream.getAudioTracks().forEach(track => {
-          combinedStream.addTrack(track);
-          console.log('Added microphone track:', track.label, track.enabled);
-        });
+        const micTrack = micStream.getAudioTracks()[0];
+        if (micTrack) {
+          micTrackRef.current = micTrack;
+          combinedStream.addTrack(micTrack);
+          console.log('Added microphone track:', micTrack.label, micTrack.enabled);
+        }
       } catch (micErr) {
         console.warn('Could not get microphone audio:', micErr);
         // Continue without microphone
@@ -267,6 +271,14 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     setIsReceivingStream(false);
   };
 
+  const toggleMicMute = () => {
+    if (micTrackRef.current) {
+      micTrackRef.current.enabled = !micTrackRef.current.enabled;
+      setIsMicMuted(!micTrackRef.current.enabled);
+      console.log('Microphone muted:', !micTrackRef.current.enabled);
+    }
+  };
+
   return (
     <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
       {(isSharing || isReceivingStream) ? (
@@ -299,7 +311,15 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       )}
 
       {isSharing && isAdmin && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-3">
+          <button
+            onClick={toggleMicMute}
+            className={`${
+              isMicMuted ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+            } text-white px-6 py-2 rounded-lg font-semibold transition-colors`}
+          >
+            {isMicMuted ? '🎤 Unmute Mic' : '🔇 Mute Mic'}
+          </button>
           <button
             onClick={stopScreenShare}
             className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold"
