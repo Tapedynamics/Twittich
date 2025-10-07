@@ -150,6 +150,9 @@ export default function LivePage() {
   const stopLive = async () => {
     if (!liveSession) return;
     try {
+      console.log('Stopping live session:', liveSession.id);
+      console.log('Access token:', accessToken ? 'Present' : 'Missing');
+
       await axios.post(
         `${API_URL}/live/${liveSession.id}/stop`,
         {},
@@ -160,8 +163,11 @@ export default function LivePage() {
         }
       );
       setLiveSession(null);
-    } catch (error) {
-      alert('Errore nell\'interruzione della live');
+      console.log('Live session stopped successfully');
+    } catch (error: any) {
+      console.error('Error stopping live:', error);
+      console.error('Error response:', error.response?.data);
+      alert(`Errore nell'interruzione della live: ${error.response?.data?.error || error.message}`);
     }
   };
 

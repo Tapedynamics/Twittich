@@ -84,6 +84,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     socketService.offICECandidate();
     socketService.offViewerJoined();
     socketService.offBroadcasterReady();
+    socketService.offBroadcasterStopped();
   };
 
   const setupBroadcasterListeners = () => {
@@ -197,6 +198,19 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       socketService.requestStream(sessionId);
     });
 
+    // Listen for broadcaster stopped event
+    socketService.onBroadcasterStopped(() => {
+      console.log('Broadcaster stopped streaming');
+      setIsReceivingStream(false);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
+    });
+
     // Retry requesting stream every 3 seconds until we receive it
     console.log('Viewer requesting stream from broadcaster');
     socketService.requestStream(sessionId);
@@ -292,6 +306,11 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const stopScreenShare = () => {
+    // Notify backend that broadcaster stopped streaming
+    if (isAdmin) {
+      socketService.broadcasterStopped(sessionId);
+    }
+
     cleanup();
     setIsSharing(false);
     setIsReceivingStream(false);

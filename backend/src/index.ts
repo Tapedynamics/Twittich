@@ -131,6 +131,16 @@ io.on('connection', (socket) => {
     console.log('Notified viewers that broadcaster is ready');
   });
 
+  socket.on('broadcaster-stopped', (data: { sessionId: string }) => {
+    console.log('Broadcaster stopped for session:', data.sessionId);
+    // Unmark this socket as the broadcaster
+    socket.data.broadcasterSession = undefined;
+
+    // Notify all viewers in this session that broadcaster stopped
+    socket.to(`live-${data.sessionId}`).emit('broadcaster-stopped');
+    console.log('Notified viewers that broadcaster stopped');
+  });
+
   socket.on('request-stream', (data: { sessionId: string }) => {
     console.log('Viewer requesting stream for session:', data.sessionId);
     // Find the broadcaster for this session

@@ -110,7 +110,10 @@ export const stopLiveSession = async (
       },
     });
 
-    // Broadcast session ended
+    // Broadcast session ended to the room
+    io.to(`live-${sessionId}`).emit('live-ended', { sessionId });
+
+    // Also broadcast globally for users not in the room yet
     io.emit('live-ended', { sessionId });
 
     res.json({ message: 'Live session stopped' });

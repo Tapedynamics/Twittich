@@ -104,6 +104,10 @@ class SocketService {
     this.socket?.emit('broadcaster-ready', { sessionId });
   }
 
+  broadcasterStopped(sessionId: string) {
+    this.socket?.emit('broadcaster-stopped', { sessionId });
+  }
+
   requestStream(sessionId: string) {
     this.socket?.emit('request-stream', { sessionId });
   }
@@ -128,6 +132,10 @@ class SocketService {
     this.socket?.on('broadcaster-ready', callback);
   }
 
+  onBroadcasterStopped(callback: () => void) {
+    this.socket?.on('broadcaster-stopped', callback);
+  }
+
   onWebRTCOffer(callback: (data: { offer: SimplePeer.SignalData; senderId: string }) => void) {
     this.socket?.on('webrtc-offer', callback);
   }
@@ -146,6 +154,10 @@ class SocketService {
 
   offBroadcasterReady() {
     this.socket?.off('broadcaster-ready');
+  }
+
+  offBroadcasterStopped() {
+    this.socket?.off('broadcaster-stopped');
   }
 
   offWebRTCOffer() {
