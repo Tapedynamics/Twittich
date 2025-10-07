@@ -14,7 +14,9 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [error, setError] = useState('');
   const [isReceivingStream, setIsReceivingStream] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const peerRef = useRef<SimplePeer.Instance | null>(null);
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
@@ -279,8 +281,38 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     }
   };
 
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+        console.log('Entered fullscreen');
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+        console.log('Exited fullscreen');
+      }
+    } catch (err) {
+      console.error('Error toggling fullscreen:', err);
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+    <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
       {(isSharing || isReceivingStream) ? (
         <video
           ref={videoRef}
@@ -310,6 +342,18 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         </div>
       )}
 
+      {/* Fullscreen button for everyone */}
+      {(isSharing || isReceivingStream) && (
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 bg-black/70 hover:bg-black/90 text-white p-3 rounded-lg font-semibold transition-colors z-20 border-2 border-[var(--cyan-neon)]"
+          title={isFullscreen ? 'Esci da schermo intero' : 'Schermo intero'}
+        >
+          {isFullscreen ? '🗙 Exit' : '⛶ Fullscreen'}
+        </button>
+      )}
+
+      {/* Control buttons for broadcaster */}
       {isSharing && isAdmin && (
         <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-3">
           <button
