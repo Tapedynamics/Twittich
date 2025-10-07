@@ -61,10 +61,19 @@ export default function LivePage() {
     const socket = socketService.connect(accessToken || undefined);
     console.log('Live page: Socket connected:', socket?.connected);
 
+    // Listen for live started event
+    const handleLiveStarted = (data: any) => {
+      console.log('Live session started:', data);
+      setLiveSession(data);
+    };
+
+    socketService.onLiveStarted(handleLiveStarted);
+
     return () => {
       if (liveSession) {
         socketService.leaveLiveSession(liveSession.id);
       }
+      socketService.offLiveStarted(handleLiveStarted);
     };
   }, [authReady, isAuthenticated, router, accessToken]);
 
