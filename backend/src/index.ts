@@ -129,6 +129,18 @@ io.on('connection', (socket) => {
     // Notify all viewers in this session that broadcaster is ready
     socket.to(`live-${data.sessionId}`).emit('broadcaster-ready');
     console.log('Notified viewers that broadcaster is ready');
+
+    // Get all sockets in the room (viewers who are already waiting)
+    const socketsInRoom = io.sockets.adapter.rooms.get(`live-${data.sessionId}`);
+    if (socketsInRoom) {
+      socketsInRoom.forEach((socketId) => {
+        // Skip the broadcaster itself
+        if (socketId !== socket.id) {
+          console.log('Notifying broadcaster of existing viewer:', socketId);
+          socket.emit('viewer-joined', { viewerId: socketId });
+        }
+      });
+    }
   });
 
   socket.on('broadcaster-stopped', (data: { sessionId: string }) => {

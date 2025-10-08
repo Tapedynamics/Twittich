@@ -69,7 +69,7 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 text-gray-600 hover:text-blue-600 transition"
+        className="relative p-2 text-[var(--cyan-neon)] hover:text-[var(--gold)] transition-colors"
       >
         <svg
           className="w-6 h-6"
@@ -85,22 +85,22 @@ export default function NotificationBell() {
           />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+          <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-black transform translate-x-1/2 -translate-y-1/2 bg-[var(--bear-red)] rounded-full neon-red shadow-lg shadow-[var(--bear-red)]/50 pulse-glow">
             {unreadCount}
           </span>
         )}
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="font-bold text-gray-900">Notifiche</h3>
+        <div className="absolute right-0 mt-2 w-80 retro-card rounded-lg shadow-2xl shadow-[var(--bull-green)]/30 border-2 border-[var(--bull-green)] z-50">
+          <div className="p-4 border-b-2 border-[var(--bull-green)]/30 flex justify-between items-center">
+            <h3 className="font-bold text-[var(--bull-green)] neon-green tracking-wider">🔔 NOTIFICHE</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-700"
+                className="text-sm text-[var(--gold)] hover:text-[var(--cyan-neon)] transition-colors font-bold"
               >
-                Segna tutte come lette
+                Segna lette
               </button>
             )}
           </div>
@@ -108,18 +108,18 @@ export default function NotificationBell() {
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
               <div className="p-4 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--bull-green)] mx-auto"></div>
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-[var(--cyan-neon)] opacity-70">
                 Nessuna notifica
               </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition ${
-                    !notification.read ? 'bg-blue-50' : ''
+                  className={`p-4 border-b border-[var(--bull-green)]/20 hover:bg-[var(--darker-bg)] transition ${
+                    !notification.read ? 'bg-[var(--bull-green)]/10 border-l-4 border-l-[var(--gold)]' : ''
                   }`}
                 >
                   <div className="flex items-start space-x-3">
@@ -127,10 +127,10 @@ export default function NotificationBell() {
                       {getNotificationIcon(notification.type)}
                     </span>
                     <div className="flex-1">
-                      <p className="text-sm text-gray-800">
+                      <p className="text-sm text-[var(--bull-green)]">
                         {notification.content}
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-[var(--gold)] opacity-70 mt-1">
                         {new Date(notification.createdAt).toLocaleString('it-IT')}
                       </p>
                     </div>

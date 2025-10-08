@@ -72,9 +72,9 @@ export default function Navbar() {
                       ⚙️ Admin
                     </Link>
                   )}
-                  {/* <div className="ml-2">
+                  <div className="ml-2">
                     <NotificationBell />
-                  </div> */}
+                  </div>
                   <button onClick={handleLogout} className="btn-bear px-4 py-2 rounded uppercase text-sm font-bold ml-2 transition-all">
                     ⏻ Exit
                   </button>

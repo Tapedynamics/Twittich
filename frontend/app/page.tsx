@@ -31,14 +31,33 @@ export default function Home() {
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+
+  // Wait for auth to be ready
+  useEffect(() => {
+    const checkAuthReady = () => {
+      if (typeof window !== 'undefined') {
+        const hasToken = localStorage.getItem('accessToken');
+        const hasUser = localStorage.getItem('user');
+        if ((!hasToken && !hasUser) || (hasToken && hasUser && isAuthenticated)) {
+          setAuthReady(true);
+        } else {
+          setTimeout(checkAuthReady, 50);
+        }
+      }
+    };
+    checkAuthReady();
+  }, [isAuthenticated]);
 
   useEffect(() => {
+    if (!authReady) return;
+
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
     loadPosts();
-  }, [isAuthenticated, router]);
+  }, [authReady, isAuthenticated, router]);
 
   const loadPosts = async () => {
     try {

@@ -37,13 +37,26 @@ export default function LivePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messageInput, setMessageInput] = useState('');
 
-  // Wait for auth to be ready
+  // Wait for auth to be ready - check if auth is initialized
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setAuthReady(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
+    // Check if localStorage has been checked (meaning AuthProvider has run)
+    const checkAuthReady = () => {
+      if (typeof window !== 'undefined') {
+        const hasToken = localStorage.getItem('accessToken');
+        const hasUser = localStorage.getItem('user');
+
+        // If there's no token/user in localStorage, or if isAuthenticated matches, auth is ready
+        if ((!hasToken && !hasUser) || (hasToken && hasUser && isAuthenticated)) {
+          setAuthReady(true);
+        } else {
+          // Wait a bit more for AuthProvider to load
+          setTimeout(checkAuthReady, 50);
+        }
+      }
+    };
+
+    checkAuthReady();
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!authReady) return;

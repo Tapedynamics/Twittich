@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import SimplePeer from 'simple-peer';
 import { socketService } from '../lib/socket';
+import { logger } from '../lib/logger';
 
 interface ScreenShareProps {
   isAdmin: boolean;
@@ -15,6 +16,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isReceivingStream, setIsReceivingStream] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -42,16 +44,16 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   // Assign stream to video when sharing starts
   useEffect(() => {
     if (isSharing && streamRef.current && videoRef.current && isAdmin) {
-      console.log('Assigning broadcaster stream to video element');
+      logger.log('Assigning broadcaster stream to video element');
       videoRef.current.srcObject = streamRef.current;
 
       videoRef.current.onloadedmetadata = async () => {
-        console.log('Video metadata loaded');
+        logger.log('Video metadata loaded');
         try {
           await videoRef.current?.play();
-          console.log('Video playing successfully');
+          logger.log('Video playing successfully');
         } catch (err) {
-          console.error('Error playing video:', err);
+          logger.error('Error playing video:', err);
         }
       };
     }
@@ -88,11 +90,11 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupBroadcasterListeners = () => {
-    console.log('Setting up broadcaster listeners');
+    logger.log('Setting up broadcaster listeners');
 
     // Broadcaster receives viewer join request
     socketService.onViewerJoined(({ viewerId }) => {
-      console.log('Viewer joined, creating peer connection:', viewerId);
+      logger.log('Viewer joined, creating peer connection:', viewerId);
 
       if (!streamRef.current) {
         console.warn('Stream not ready yet, ignoring viewer join');
@@ -126,24 +128,24 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       peersRef.current.set(viewerId, peer);
 
       peer.on('signal', (signal) => {
-        console.log('Broadcaster sending offer to viewer:', viewerId);
+        logger.log('Broadcaster sending offer to viewer:', viewerId);
         socketService.sendWebRTCOffer(sessionId, signal, viewerId);
       });
 
       peer.on('error', (err) => {
-        console.error('Broadcaster peer error for viewer', viewerId, err);
+        logger.error('Broadcaster peer error for viewer', viewerId, err);
         peersRef.current.delete(viewerId);
       });
 
       peer.on('close', () => {
-        console.log('Peer connection closed for viewer:', viewerId);
+        logger.log('Peer connection closed for viewer:', viewerId);
         peersRef.current.delete(viewerId);
       });
     });
 
     // Broadcaster receives answers from viewers
     socketService.onWebRTCAnswer(({ answer, senderId }) => {
-      console.log('Broadcaster received answer from viewer:', senderId);
+      logger.log('Broadcaster received answer from viewer:', senderId);
       const peer = peersRef.current.get(senderId);
       if (peer) {
         peer.signal(answer);
@@ -154,11 +156,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupViewerListeners = () => {
-    console.log('Setting up viewer listeners');
+    logger.log('Setting up viewer listeners');
+    setConnectionStatus('connecting');
 
     // Viewer receives offer from broadcaster
     socketService.onWebRTCOffer(({ offer, senderId }) => {
-      console.log('Viewer received offer from broadcaster:', senderId);
+      logger.log('Viewer received offer from broadcaster:', senderId);
 
       // Create peer as receiver (initiator: false)
       const peer = new SimplePeer({
@@ -186,28 +189,51 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       peerRef.current = peer;
 
       peer.on('signal', (signal) => {
-        console.log('Viewer sending answer to broadcaster');
+        logger.log('Viewer sending answer to broadcaster');
         socketService.sendWebRTCAnswer(sessionId, signal, senderId);
       });
 
+      peer.on('connect', () => {
+        logger.log('Viewer peer connected!');
+        setConnectionStatus('connected');
+        setError('');
+      });
+
       peer.on('stream', (remoteStream) => {
-        console.log('Viewer received stream:', remoteStream);
+        logger.log('Viewer received stream:', remoteStream);
         setIsReceivingStream(true);
+        setConnectionStatus('connected');
 
         setTimeout(() => {
           if (videoRef.current) {
-            console.log('Assigning stream to video element');
+            logger.log('Assigning stream to video element');
             videoRef.current.srcObject = remoteStream;
-            videoRef.current.play().catch(err => console.error('Play error:', err));
+            videoRef.current.play().catch(err => logger.error('Play error:', err));
           } else {
-            console.error('Video ref still null after timeout!');
+            logger.error('Video ref still null after timeout!');
           }
         }, 100);
       });
 
       peer.on('error', (err) => {
-        console.error('Viewer peer error:', err);
-        setError('Errore nella connessione peer');
+        logger.error('Viewer peer error:', err);
+        setError('Impossibile connettersi allo streaming. Riprova...');
+        setConnectionStatus('failed');
+
+        // Auto-retry after 3 seconds
+        setTimeout(() => {
+          if (peerRef.current) {
+            peerRef.current.destroy();
+            peerRef.current = null;
+          }
+          setConnectionStatus('connecting');
+          socketService.requestStream(sessionId);
+        }, 3000);
+      });
+
+      peer.on('close', () => {
+        logger.log('Viewer peer connection closed');
+        setConnectionStatus('idle');
       });
 
       // Signal the peer with the offer
@@ -387,21 +413,51 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           className="w-full h-full object-contain"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-white text-xl mb-4">
-              {isAdmin ? '🎥 Pronto per condividere lo schermo' : '⏳ In attesa dello streaming'}
-            </p>
-            {error && (
-              <p className="text-red-400 text-sm mb-4">{error}</p>
-            )}
-            {isAdmin && !isSharing && (
-              <button
-                onClick={startScreenShare}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold"
-              >
-                📺 Condividi Schermo
-              </button>
+        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-black via-[#0a0e1a] to-black">
+          <div className="text-center max-w-md px-4">
+            {isAdmin ? (
+              <>
+                <div className="text-6xl mb-4 pulse-glow">🎥</div>
+                <p className="text-[var(--bull-green)] text-xl mb-4 neon-green">
+                  Pronto per lo streaming
+                </p>
+                {error && (
+                  <p className="text-[var(--bear-red)] text-sm mb-4 neon-red">{error}</p>
+                )}
+                <button
+                  onClick={startScreenShare}
+                  className="btn-bear px-8 py-4 rounded-lg font-bold text-lg uppercase tracking-wider pulse-glow shadow-lg shadow-[var(--bear-red)]/50"
+                >
+                  📺 Condividi Schermo
+                </button>
+              </>
+            ) : (
+              <>
+                {connectionStatus === 'idle' && (
+                  <>
+                    <div className="text-6xl mb-4">⏳</div>
+                    <p className="text-[var(--cyan-neon)] text-xl mb-2">In attesa dello streaming</p>
+                    <p className="text-[var(--bull-green)] text-sm opacity-70">Il broadcaster non ha ancora iniziato...</p>
+                  </>
+                )}
+                {connectionStatus === 'connecting' && (
+                  <>
+                    <div className="animate-spin rounded-full h-16 w-16 border-4 border-[var(--bull-green)] border-t-transparent mx-auto mb-4"></div>
+                    <p className="text-[var(--bull-green)] text-xl mb-2 neon-green">Connessione in corso...</p>
+                    <p className="text-[var(--cyan-neon)] text-sm opacity-70">Stabilendo la connessione peer-to-peer</p>
+                  </>
+                )}
+                {connectionStatus === 'failed' && (
+                  <>
+                    <div className="text-6xl mb-4 pulse-glow">⚠️</div>
+                    <p className="text-[var(--bear-red)] text-xl mb-2 neon-red">Connessione fallita</p>
+                    <p className="text-[var(--gold)] text-sm opacity-70">Nuovo tentativo tra 3 secondi...</p>
+                  </>
+                )}
+                {error && (
+                  <p className="text-[var(--bear-red)] text-sm mt-4 neon-red">{error}</p>
+                )}
+              </>
             )}
           </div>
         </div>
