@@ -97,6 +97,19 @@ export default function FundingPage() {
       affiliateUrl: '#',
       badge: 'Novità',
     },
+    {
+      name: 'Savius',
+      description: 'Instant funding dal 2014 - Specialisti Futures',
+      features: [
+        'Instant Funded (no challenge)',
+        'Account da $25k a $300k',
+        'Profit split fino 90%',
+        'Payout in 24-48h',
+      ],
+      logo: '⚡',
+      affiliateUrl: 'https://savius.com',
+      badge: 'Instant',
+    },
   ];
 
   return (
