@@ -113,7 +113,30 @@ export default function PostCard({ post }: { post: Post }) {
       </div>
 
       {/* Content */}
-      <p className="text-[var(--bull-green)] mb-4 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+      {(() => {
+        // Check if content is a base64 image string
+        const isBase64Image = post.content.startsWith('data:image/');
+
+        if (isBase64Image) {
+          // Render as image if content is base64
+          return (
+            <div className="mb-4">
+              <img
+                src={post.content}
+                alt="Post image"
+                className="rounded-lg w-full max-h-[500px] object-contain"
+              />
+            </div>
+          );
+        } else {
+          // Render as text
+          return (
+            <p className="text-[var(--bull-green)] mb-4 whitespace-pre-wrap leading-relaxed">
+              {post.content}
+            </p>
+          );
+        }
+      })()}
 
       {/* Media */}
       {post.mediaUrls && Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
