@@ -27,6 +27,7 @@ const SYMBOLS = [
 
 // Get cached data if still valid
 function getCachedData(): MarketSymbol[] | null {
+  // Only run in browser
   if (typeof window === 'undefined') return null;
 
   try {
@@ -64,6 +65,15 @@ function setCachedData(data: MarketSymbol[]): void {
 
 // Fetch quote from Alpha Vantage
 async function fetchQuote(symbol: string, market: string): Promise<MarketSymbol | null> {
+  // Only run in browser
+  if (typeof window === 'undefined') return null;
+
+  // Check if API key is available
+  if (!ALPHA_VANTAGE_KEY) {
+    console.warn('Alpha Vantage API key not configured');
+    return null;
+  }
+
   try {
     let url: string;
 
@@ -76,6 +86,9 @@ async function fetchQuote(symbol: string, market: string): Promise<MarketSymbol 
     }
 
     const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const data = await response.json();
 
     if (market === 'crypto') {
@@ -117,6 +130,11 @@ async function fetchQuote(symbol: string, market: string): Promise<MarketSymbol 
 
 // Fetch all market data with delay to respect rate limits
 export async function fetchMarketData(): Promise<MarketSymbol[]> {
+  // Only run in browser
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
   // Check cache first
   const cached = getCachedData();
   if (cached) {
