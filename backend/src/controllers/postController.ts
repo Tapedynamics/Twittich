@@ -28,7 +28,13 @@ export const getFeed = async (req: AuthRequest, res: Response): Promise<void> =>
       },
     });
 
-    res.json(posts);
+    // Convert mediaUrls from string to array for frontend compatibility
+    const formattedPosts = posts.map(post => ({
+      ...post,
+      mediaUrls: post.mediaUrls ? [post.mediaUrls] : []
+    }));
+
+    res.json(formattedPosts);
   } catch (error) {
     console.error('Get feed error:', error);
     res.status(500).json({ error: 'Internal server error' });
