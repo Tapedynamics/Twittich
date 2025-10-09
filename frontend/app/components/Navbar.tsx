@@ -124,6 +124,12 @@ export default function Navbar() {
                   <Link href="/live" onClick={() => setMobileMenuOpen(false)} className="block text-[var(--bear-red)] hover:text-[var(--gold)] py-2 uppercase text-sm tracking-wide">
                     🔴 Live
                   </Link>
+                  <Link href="/education" onClick={() => setMobileMenuOpen(false)} className="block text-[var(--cyan-neon)] hover:text-[var(--gold)] py-2 uppercase text-sm tracking-wide">
+                    📚 Education
+                  </Link>
+                  <Link href="/funding" onClick={() => setMobileMenuOpen(false)} className="block text-[var(--magenta-neon)] hover:text-[var(--gold)] py-2 uppercase text-sm tracking-wide">
+                    💼 Funding
+                  </Link>
                   <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="block text-[var(--cyan-neon)] hover:text-[var(--gold)] py-2 uppercase text-sm tracking-wide">
                     👤 Profile
                   </Link>
