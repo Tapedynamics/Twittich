@@ -117,21 +117,27 @@ body::before {
   white-space: nowrap;
 }
 
-/* 💎 Retro Card Styles */
+/* 💎 Retro Card Styles - Enhanced 3D Depth */
 .retro-card {
   background: rgba(10, 14, 26, 0.85);
   border: 2px solid var(--bull-green);
   box-shadow:
     0 0 20px rgba(0, 255, 65, 0.3),
-    0 8px 32px rgba(0, 0, 0, 0.8);
+    0 8px 32px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
+  transform: translateZ(0);
+  transition: all 0.3s ease;
 }
 
 .retro-card:hover {
   box-shadow:
     0 0 30px rgba(0, 255, 65, 0.5),
-    0 12px 48px rgba(0, 0, 0, 0.9);
-  transform: translateY(-2px);
+    0 16px 48px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+  transform: translateY(-4px) translateZ(0);
   transition: all 0.3s ease;
 }
 
@@ -164,30 +170,72 @@ body::before {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* 📊 Trading Button Styles */
+/* 📊 Trading Button Styles - Enhanced 3D Press Effect */
 .btn-bull {
   background: var(--gradient-green);
   color: #000;
   font-weight: bold;
   text-shadow: none;
-  box-shadow: 0 0 20px rgba(0, 255, 65, 0.5);
+  box-shadow:
+    0 0 20px rgba(0, 255, 65, 0.5),
+    0 4px 0 rgba(0, 204, 51, 0.8),
+    0 6px 12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.15s ease;
+  position: relative;
+  top: 0;
 }
 
 .btn-bull:hover {
-  box-shadow: 0 0 30px rgba(0, 255, 65, 0.8);
-  transform: scale(1.05);
+  box-shadow:
+    0 0 30px rgba(0, 255, 65, 0.8),
+    0 6px 0 rgba(0, 204, 51, 0.9),
+    0 8px 16px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transform: scale(1.02);
+}
+
+.btn-bull:active {
+  box-shadow:
+    0 0 20px rgba(0, 255, 65, 0.6),
+    0 2px 0 rgba(0, 204, 51, 0.9),
+    0 3px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  transform: translateY(2px);
+  top: 2px;
 }
 
 .btn-bear {
   background: var(--gradient-red);
   color: #fff;
   font-weight: bold;
-  box-shadow: 0 0 20px rgba(255, 8, 68, 0.5);
+  box-shadow:
+    0 0 20px rgba(255, 8, 68, 0.5),
+    0 4px 0 rgba(204, 0, 54, 0.8),
+    0 6px 12px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.15s ease;
+  position: relative;
+  top: 0;
 }
 
 .btn-bear:hover {
-  box-shadow: 0 0 30px rgba(255, 8, 68, 0.8);
-  transform: scale(1.05);
+  box-shadow:
+    0 0 30px rgba(255, 8, 68, 0.8),
+    0 6px 0 rgba(204, 0, 54, 0.9),
+    0 8px 16px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: scale(1.02);
+}
+
+.btn-bear:active {
+  box-shadow:
+    0 0 20px rgba(255, 8, 68, 0.6),
+    0 2px 0 rgba(204, 0, 54, 0.9),
+    0 3px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  transform: translateY(2px);
+  top: 2px;
 }
 
 /* 💫 Glitch Effect */
@@ -209,6 +257,103 @@ body::before {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* 🎨 Enhanced Input Fields with Depth */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.2s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 2px rgba(0, 255, 65, 0.3),
+    0 0 12px rgba(0, 255, 65, 0.4);
+}
+
+/* 🔗 Enhanced Links with Subtle Depth */
+a:not(.btn-bull):not(.btn-bear) {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+}
+
+a:not(.btn-bull):not(.btn-bear):hover {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.7),
+    0 0 8px currentColor;
+  transform: translateY(-1px);
+}
+
+/* 📦 Generic Button Depth Enhancement */
+button:not(.btn-bull):not(.btn-bear) {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.15s ease;
+}
+
+button:not(.btn-bull):not(.btn-bear):hover {
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+button:not(.btn-bull):not(.btn-bear):active {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  transform: translateY(1px);
+}
+
+/* 🎯 Enhanced Navbar Depth */
+nav {
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(0, 255, 65, 0.2);
+}
+
+/* 🔔 Enhanced Notification Badge */
+.notification-badge {
+  box-shadow:
+    0 0 8px currentColor,
+    0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* 📸 Enhanced Image Cards */
+img {
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+img:hover {
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transform: scale(1.02);
+}
+
+/* 🎪 Section Headers with Depth */
+h1, h2, h3, h4, h5, h6 {
+  text-shadow:
+    2px 2px 4px rgba(0, 0, 0, 0.8),
+    0 0 10px currentColor;
 }
 
 /* Scrollbar Styling */
