@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../store/authStore';
 import { socketService } from '../lib/socket';
-import axios from 'axios';
+import axiosInstance from '../lib/axiosInstance';
 import ScreenShare from '../components/ScreenShare';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 interface LiveSession {
   id: string;
@@ -131,7 +129,7 @@ export default function LivePage() {
 
   const loadLiveSession = async () => {
     try {
-      const response = await axios.get(`${API_URL}/live/current`);
+      const response = await axiosInstance.get('/live/current');
       setLiveSession(response.data);
     } catch (error) {
       console.error('Error loading live session:', error);
@@ -142,18 +140,10 @@ export default function LivePage() {
 
   const startLive = async () => {
     try {
-      const response = await axios.post(
-        `${API_URL}/live/start`,
-        {
-          title: 'Trading Live Session',
-          description: 'Analisi di mercato in tempo reale',
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await axiosInstance.post('/live/start', {
+        title: 'Trading Live Session',
+        description: 'Analisi di mercato in tempo reale',
+      });
       setLiveSession(response.data);
     } catch (error: any) {
       alert(error.response?.data?.error || 'Errore nell\'avvio della live');
@@ -164,17 +154,8 @@ export default function LivePage() {
     if (!liveSession) return;
     try {
       console.log('Stopping live session:', liveSession.id);
-      console.log('Access token:', accessToken ? 'Present' : 'Missing');
 
-      await axios.post(
-        `${API_URL}/live/${liveSession.id}/stop`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      await axiosInstance.post(`/live/${liveSession.id}/stop`);
       setLiveSession(null);
       console.log('Live session stopped successfully');
     } catch (error: any) {
