@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useAuthStore } from '../store/authStore';
 import { useRouter } from 'next/navigation';
 import NotificationBell from './NotificationBell';
-import TickerTape from './TickerTape';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -23,8 +22,19 @@ export default function Navbar() {
       {/* Scanline Effect */}
       <div className="scanline"></div>
 
-      {/* Ticker Tape - Real Market Data */}
-      <TickerTape />
+      {/* Ticker Tape */}
+      <div className="bg-black border-b-2 border-[var(--bull-green)] overflow-hidden py-1">
+        <div className="ticker-tape flex space-x-8 text-xs">
+          <span className="neon-green">█ BTCUSD +2.47% </span>
+          <span className="neon-red">█ ETHUSD -1.23%</span>
+          <span className="neon-gold">█ GOLD +0.89%</span>
+          <span className="neon-cyan">█ SPX +1.56%</span>
+          <span className="neon-green">█ NASDAQ +2.13%</span>
+          <span className="neon-red">█ DJI -0.34%</span>
+          <span className="neon-green">█ TSLA +4.21%</span>
+          <span className="neon-red">█ META -0.87%</span>
+        </div>
+      </div>
 
       <nav className="bg-[#0a0e1a] border-b-2 border-[var(--bull-green)] shadow-lg shadow-[var(--bull-green)]/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
