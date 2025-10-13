@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import postRoutes from './routes/posts';
@@ -10,6 +12,7 @@ import liveRoutes from './routes/live';
 import notificationRoutes from './routes/notifications';
 import adminRoutes from './routes/admin';
 import prisma from './config/database';
+import { verifyAccessToken } from './utils/jwt';
 
 dotenv.config();
 
@@ -25,15 +28,57 @@ const io = new Server(httpServer, {
   allowEIO3: true,
 });
 
-// Middleware
+// Security Headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
+
+// CORS Configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Rate Limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 attempts per 15 minutes
+  message: 'Too many attempts from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // max 100 requests per 15 minutes
+  message: 'Too many requests from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api', apiLimiter);
 
 // Routes
 app.get('/health', (req, res) => {
@@ -50,8 +95,40 @@ app.use('/api/admin', adminRoutes);
 // Socket.io connection
 const activeSessions = new Map<string, Set<string>>();
 
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+// WebSocket Authentication Middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+
+  if (!token) {
+    return next(new Error('Authentication error: Token required'));
+  }
+
+  const decoded = verifyAccessToken(token);
+
+  if (!decoded) {
+    return next(new Error('Authentication error: Invalid token'));
+  }
+
+  socket.data.userId = decoded.userId;
+  next();
+});
+
+io.on('connection', async (socket) => {
+  console.log('User connected:', socket.id, 'UserID:', socket.data.userId);
+
+  // Load user info once at connection
+  const user = await prisma.user.findUnique({
+    where: { id: socket.data.userId },
+    select: { id: true, username: true, isAdmin: true }
+  });
+
+  if (!user) {
+    socket.disconnect();
+    return;
+  }
+
+  socket.data.username = user.username;
+  socket.data.isAdmin = user.isAdmin;
 
   // Join live session
   socket.on('join-live', async (sessionId: string) => {
@@ -88,15 +165,44 @@ io.on('connection', (socket) => {
     console.log(`User ${socket.id} left live session ${sessionId}`);
   });
 
-  // Live chat message
-  socket.on('live-chat-message', async (data: { sessionId: string; message: string; userId: string; username: string }) => {
+  // Live chat message - SECURED with rate limiting
+  const chatRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+  socket.on('live-chat-message', async (data: { sessionId: string; message: string }) => {
     try {
-      const { sessionId, message, userId, username } = data;
+      const { sessionId, message } = data;
+
+      // Use authenticated userId and username from socket.data
+      const userId = socket.data.userId;
+      const username = socket.data.username;
 
       console.log('Live chat message received:', { sessionId, message, userId, username });
 
-      if (!userId) {
-        console.error('userId is missing in chat message');
+      // Rate limiting: max 10 messages per minute
+      const now = Date.now();
+      const limit = chatRateLimits.get(userId) || { count: 0, resetAt: now + 60000 };
+
+      if (now > limit.resetAt) {
+        limit.count = 0;
+        limit.resetAt = now + 60000;
+      }
+
+      if (limit.count >= 10) {
+        socket.emit('error', { message: 'Too many messages. Please slow down!' });
+        return;
+      }
+
+      limit.count++;
+      chatRateLimits.set(userId, limit);
+
+      // Validate message length
+      if (!message || message.trim().length === 0) {
+        socket.emit('error', { message: 'Message cannot be empty' });
+        return;
+      }
+
+      if (message.length > 500) {
+        socket.emit('error', { message: 'Message too long (max 500 characters)' });
         return;
       }
 
@@ -105,18 +211,19 @@ io.on('connection', (socket) => {
         data: {
           sessionId,
           userId,
-          message,
+          message: message.trim(),
         },
       });
 
       // Broadcast message to all viewers
       io.to(`live-${sessionId}`).emit('live-chat-message', {
         username,
-        message,
+        message: message.trim(),
         timestamp: new Date(),
       });
     } catch (error) {
       console.error('Error handling live chat message:', error);
+      socket.emit('error', { message: 'Failed to send message' });
     }
   });
 

@@ -1,17 +1,25 @@
 import { Response } from 'express';
+import { z } from 'zod';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { updateProfileSchema } from '../validators/userValidator';
+import { validateBase64Image } from '../utils/imageValidator';
 
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.params.id || req.userId;
+    const requestedUserId = req.params.id;
+    const currentUserId = req.userId;
+
+    // Check if viewing own profile
+    const isOwnProfile = requestedUserId === currentUserId;
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: requestedUserId },
       select: {
         id: true,
         username: true,
-        email: true,
+        // Email only visible to profile owner
+        email: isOwnProfile,
         bio: true,
         avatar: true,
         coverImage: true,
@@ -112,13 +120,24 @@ export const unfollowUser = async (req: AuthRequest, res: Response): Promise<voi
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.userId!;
-    const { username, bio, avatar, tradingStyle } = req.body;
+
+    // Validate input with Zod (prevents mass assignment)
+    const validated = updateProfileSchema.parse(req.body);
+
+    // Validate images if present
+    if (validated.avatar) {
+      validateBase64Image(validated.avatar);
+    }
+    if (validated.coverImage) {
+      validateBase64Image(validated.coverImage);
+    }
 
     const updateData: any = {};
-    if (username !== undefined) updateData.username = username;
-    if (bio !== undefined) updateData.bio = bio;
-    if (avatar !== undefined) updateData.avatar = avatar;
-    if (tradingStyle !== undefined) updateData.tradingStyle = tradingStyle;
+    if (validated.username !== undefined) updateData.username = validated.username;
+    if (validated.bio !== undefined) updateData.bio = validated.bio;
+    if (validated.avatar !== undefined) updateData.avatar = validated.avatar;
+    if (validated.coverImage !== undefined) updateData.coverImage = validated.coverImage;
+    if (validated.tradingStyle !== undefined) updateData.tradingStyle = validated.tradingStyle;
 
     const user = await prisma.user.update({
       where: { id: userId },
@@ -147,6 +166,10 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
     res.json(user);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Update profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

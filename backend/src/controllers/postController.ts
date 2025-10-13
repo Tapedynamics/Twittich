@@ -1,6 +1,9 @@
 import { Response } from 'express';
+import { z } from 'zod';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth';
+import { createPostSchema, addCommentSchema } from '../validators/postValidator';
+import { validateBase64Image } from '../utils/imageValidator';
 
 export const getFeed = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -43,12 +46,23 @@ export const getFeed = async (req: AuthRequest, res: Response): Promise<void> =>
 
 export const createPost = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { content, mediaUrls, type } = req.body;
+    // Validate input with Zod
+    const validated = createPostSchema.parse(req.body);
+    const { content, mediaUrls, type } = validated;
     const userId = req.userId!;
 
-    if (!content) {
-      res.status(400).json({ error: 'Content is required' });
-      return;
+    // Check if content is a base64 image and validate it
+    if (content.startsWith('data:image/')) {
+      validateBase64Image(content);
+    }
+
+    // Validate media URLs if present
+    if (mediaUrls && mediaUrls.length > 0) {
+      for (const url of mediaUrls) {
+        if (url.startsWith('data:image/')) {
+          validateBase64Image(url);
+        }
+      }
     }
 
     const post = await prisma.post.create({
@@ -71,6 +85,10 @@ export const createPost = async (req: AuthRequest, res: Response): Promise<void>
 
     res.status(201).json(post);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Create post error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -162,13 +180,11 @@ export const getComments = async (req: AuthRequest, res: Response): Promise<void
 export const addComment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id: postId } = req.params;
-    const { content } = req.body;
     const userId = req.userId!;
 
-    if (!content) {
-      res.status(400).json({ error: 'Content is required' });
-      return;
-    }
+    // Validate input with Zod
+    const validated = addCommentSchema.parse(req.body);
+    const { content } = validated;
 
     const comment = await prisma.comment.create({
       data: {
@@ -194,6 +210,10 @@ export const addComment = async (req: AuthRequest, res: Response): Promise<void>
 
     res.status(201).json(comment);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Add comment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

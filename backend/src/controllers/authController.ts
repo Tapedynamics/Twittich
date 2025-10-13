@@ -1,17 +1,15 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { z } from 'zod';
 import prisma from '../config/database';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
+import { registerSchema, loginSchema, refreshTokenSchema } from '../validators/authValidator';
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { username, email, password } = req.body;
-
-    // Validation
-    if (!username || !email || !password) {
-      res.status(400).json({ error: 'All fields are required' });
-      return;
-    }
+    // Validate input with Zod
+    const validated = registerSchema.parse(req.body);
+    const { username, email, password } = validated;
 
     // Check if user exists
     const existingUser = await prisma.user.findFirst({
@@ -55,6 +53,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       refreshToken,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -62,13 +64,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
-
-    // Validation
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
-      return;
-    }
+    // Validate input with Zod
+    const validated = loginSchema.parse(req.body);
+    const { email, password } = validated;
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -104,6 +102,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       refreshToken,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -111,12 +113,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const refresh = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      res.status(401).json({ error: 'Refresh token required' });
-      return;
-    }
+    // Validate input with Zod
+    const validated = refreshTokenSchema.parse(req.body);
+    const { refreshToken } = validated;
 
     // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
@@ -131,6 +130,10 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
 
     res.json({ accessToken });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ error: error.errors[0].message });
+      return;
+    }
     console.error('Refresh error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

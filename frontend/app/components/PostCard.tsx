@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { postsAPI } from '../lib/api';
+import DOMPurify from 'isomorphic-dompurify';
 
 interface Post {
   id: string;
@@ -129,10 +130,16 @@ export default function PostCard({ post }: { post: Post }) {
             </div>
           );
         } else {
-          // Render as text
+          // Render as text - SANITIZED against XSS
+          const sanitizedContent = DOMPurify.sanitize(post.content, {
+            ALLOWED_TAGS: [], // No HTML tags allowed
+            ALLOWED_ATTR: [], // No attributes allowed
+            KEEP_CONTENT: true // Keep text content
+          });
+
           return (
             <p className="text-[var(--bull-green)] mb-4 whitespace-pre-wrap leading-relaxed">
-              {post.content}
+              {sanitizedContent}
             </p>
           );
         }
@@ -218,7 +225,9 @@ export default function PostCard({ post }: { post: Post }) {
                         <p className="font-semibold text-sm text-[var(--cyan-neon)]">
                           {comment.user.username}
                         </p>
-                        <p className="text-[var(--bull-green)] text-sm mt-1">{comment.content}</p>
+                        <p className="text-[var(--bull-green)] text-sm mt-1">
+                          {DOMPurify.sanitize(comment.content, { ALLOWED_TAGS: [], ALLOWED_ATTR: [], KEEP_CONTENT: true })}
+                        </p>
                       </div>
                       <p className="text-xs text-[var(--gold)] opacity-70 mt-1">
                         {formatDate(comment.createdAt)}

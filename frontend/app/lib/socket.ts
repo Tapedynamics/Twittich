@@ -48,7 +48,8 @@ class SocketService {
   }
 
   sendChatMessage(sessionId: string, message: string, userId: string, username: string) {
-    this.socket?.emit('live-chat-message', { sessionId, message, userId, username });
+    // userId and username are no longer needed - server uses authenticated data
+    this.socket?.emit('live-chat-message', { sessionId, message });
   }
 
   onLiveChatMessage(callback: (data: any) => void) {

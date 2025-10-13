@@ -6,6 +6,7 @@ import { useAuthStore } from './store/authStore';
 import { postsAPI } from './lib/api';
 import PostCard from './components/PostCard';
 import CreatePost from './components/CreatePost';
+import WelcomeHero from './components/WelcomeHero';
 
 interface Post {
   id: string;
@@ -27,11 +28,12 @@ interface Post {
 }
 
 export default function Home() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
 
   // Wait for auth to be ready
   useEffect(() => {
@@ -70,42 +72,72 @@ export default function Home() {
     }
   };
 
+  // Check if user has seen welcome (localStorage)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user) {
+      const hasSeenWelcome = localStorage.getItem(`welcome_seen_${user.id}`);
+      if (hasSeenWelcome === 'true') {
+        setShowWelcome(false);
+      }
+    }
+  }, [user]);
+
+  const handleDismissWelcome = () => {
+    if (typeof window !== 'undefined' && user) {
+      localStorage.setItem(`welcome_seen_${user.id}`, 'true');
+    }
+    setShowWelcome(false);
+  };
+
   if (!isAuthenticated) {
     return null;
   }
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
+      {/* Show Welcome Hero on first visit */}
+      {showWelcome && (
+        <WelcomeHero onDismiss={handleDismissWelcome} username={user?.username || 'Trader'} />
+      )}
+
       {/* Trading Floor Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-4xl font-bold neon-green mb-2 glitch">
-          🏦 TRADING FLOOR
-        </h1>
-        <div className="text-[var(--gold)] text-sm tracking-widest">
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        </div>
-      </div>
+      {!showWelcome && (
+        <>
+          <div className="mb-8 text-center">
+            <h1 className="text-4xl font-bold neon-green mb-2 glitch">
+              🏦 TRADING FLOOR
+            </h1>
+            <div className="text-[var(--gold)] text-sm tracking-widest">
+              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            </div>
+          </div>
 
-      <CreatePost onPostCreated={loadPosts} />
+          <CreatePost onPostCreated={loadPosts} />
+        </>
+      )}
 
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="neon-green text-2xl mb-4">⌛</div>
-          <div className="text-[var(--bull-green)] tracking-widest">LOADING MARKET DATA...</div>
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="retro-card rounded-lg p-12 text-center mt-8">
-          <div className="neon-gold text-4xl mb-4">📊</div>
-          <p className="text-[var(--bull-green)] text-lg tracking-wide">
-            NO TRADES YET. BE THE FIRST TO SHARE YOUR STRATEGY!
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-        </div>
+      {!showWelcome && (
+        <>
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="neon-green text-2xl mb-4">⌛</div>
+              <div className="text-[var(--bull-green)] tracking-widest">LOADING MARKET DATA...</div>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="retro-card rounded-lg p-12 text-center mt-8">
+              <div className="neon-gold text-4xl mb-4">📊</div>
+              <p className="text-[var(--bull-green)] text-lg tracking-wide">
+                NO TRADES YET. BE THE FIRST TO SHARE YOUR STRATEGY!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
