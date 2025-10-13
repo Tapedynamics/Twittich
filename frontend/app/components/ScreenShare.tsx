@@ -429,7 +429,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
   const startScreenShare = async () => {
     try {
-      console.log('Broadcaster: Starting screen share...');
+      console.log('🎬 Broadcaster: Starting screen share...');
+      console.log('🔍 DEBUG: startScreenShare called');
 
       // First, get display media with audio
       const displayStream = await navigator.mediaDevices.getDisplayMedia({
@@ -492,10 +493,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       setError('');
 
       // Setup broadcaster listeners NOW that stream is ready
+      console.log('✅ Stream ready, setting up broadcaster listeners');
       logger.log('Stream ready, setting up broadcaster listeners');
       setupBroadcasterListeners();
 
       // Notify backend that stream is ready
+      console.log('📡 Notifying backend broadcaster is ready');
       logger.log('Notifying backend broadcaster is ready');
       socketService.broadcasterReady(sessionId);
 
