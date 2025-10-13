@@ -117,6 +117,8 @@ app.use('/api/admin', adminRoutes);
 
 // Socket.io connection
 const activeSessions = new Map<string, Set<string>>();
+// Track which viewers have been notified to broadcaster (prevent duplicates)
+const notifiedViewers = new Map<string, Set<string>>(); // sessionId -> Set of viewerIds
 
 // WebSocket Authentication Middleware
 io.use((socket, next) => {
@@ -284,27 +286,51 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('request-stream', (data: { sessionId: string }) => {
-    console.log('Viewer requesting stream for session:', data.sessionId);
+    console.log('🔵 Backend: Viewer requesting stream for session:', data.sessionId, 'viewerId:', socket.id);
+
+    // Check if we already notified broadcaster about this viewer
+    if (!notifiedViewers.has(data.sessionId)) {
+      notifiedViewers.set(data.sessionId, new Set());
+    }
+
+    const sessionViewers = notifiedViewers.get(data.sessionId)!;
+    if (sessionViewers.has(socket.id)) {
+      console.log('⚠️ Backend: Already notified broadcaster about viewer', socket.id, '- IGNORING duplicate request');
+      return; // Don't send duplicate viewer-joined events
+    }
+
     // Find the broadcaster for this session
     const sockets = Array.from(io.sockets.sockets.values());
     const broadcaster = sockets.find(s => s.data.broadcasterSession === data.sessionId);
 
     if (broadcaster) {
-      console.log('Found broadcaster, notifying them of new viewer:', socket.id);
+      console.log('✅ Backend: Found broadcaster, notifying them of NEW viewer:', socket.id);
+      sessionViewers.add(socket.id); // Mark as notified
       broadcaster.emit('viewer-joined', {
         viewerId: socket.id,
       });
     } else {
-      console.warn('No broadcaster found for session:', data.sessionId);
+      console.warn('❌ Backend: No broadcaster found for session:', data.sessionId);
     }
   });
 
   socket.on('webrtc-offer', (data: { sessionId: string; offer: any; targetId: string }) => {
-    console.log('Sending WebRTC offer to viewer:', data.targetId);
-    io.to(data.targetId).emit('webrtc-offer', {
-      offer: data.offer,
-      senderId: socket.id,
-    });
+    console.log('📤 Backend: Received offer from broadcaster:', socket.id);
+    console.log('📤 Backend: Routing offer to viewer:', data.targetId);
+    console.log('📤 Backend: Offer type:', data.offer?.type);
+
+    // Check if target viewer socket exists
+    const targetSocket = io.sockets.sockets.get(data.targetId);
+    if (targetSocket) {
+      console.log('✅ Backend: Target viewer socket FOUND, emitting offer');
+      io.to(data.targetId).emit('webrtc-offer', {
+        offer: data.offer,
+        senderId: socket.id,
+      });
+      console.log('✅ Backend: Offer emitted successfully');
+    } else {
+      console.error('❌ Backend: Target viewer socket NOT FOUND:', data.targetId);
+    }
   });
 
   socket.on('webrtc-answer', (data: { sessionId: string; answer: any; targetId: string }) => {
@@ -338,6 +364,12 @@ io.on('connection', async (socket) => {
         io.to(`live-${sessionId}`).emit('viewers-count', viewersCount);
       }
     });
+
+    // Clean up notified viewers tracking
+    notifiedViewers.forEach((viewers, sessionId) => {
+      viewers.delete(socket.id);
+    });
+
     console.log('User disconnected:', socket.id);
   });
 });
