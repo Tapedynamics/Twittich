@@ -142,21 +142,24 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     // Broadcaster receives viewer join request
     console.log('🎧 Setting up viewer-joined listener');
     socketService.onViewerJoined(({ viewerId }) => {
-      console.log('✅ Viewer joined, creating peer connection:', viewerId);
+      console.log('✅ Viewer joined event received:', viewerId);
       logger.log('✅ Viewer joined, creating peer connection:', viewerId);
 
       if (!streamRef.current) {
+        console.error('❌ Stream not ready yet, ignoring viewer join');
         logger.error('❌ Stream not ready yet, ignoring viewer join');
         return;
       }
 
-      // CRITICAL: Check if peer already exists for this viewer
+      // CRITICAL: Check if peer already exists for this viewer - DON'T create duplicate!
       const existingPeer = peersRef.current.get(viewerId);
       if (existingPeer) {
-        logger.log('⚠️ Peer already exists for viewer, destroying old one:', viewerId);
-        existingPeer.destroy();
-        peersRef.current.delete(viewerId);
+        console.log('⚠️ Peer already exists for viewer, IGNORING duplicate request:', viewerId);
+        logger.log('⚠️ Peer already exists for viewer, IGNORING duplicate request:', viewerId);
+        return; // DON'T destroy and recreate - just ignore
       }
+
+      console.log('🆕 Creating NEW peer for viewer:', viewerId);
 
       logger.log('Stream details:', {
         id: streamRef.current.id,
