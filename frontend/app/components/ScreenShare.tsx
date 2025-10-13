@@ -161,7 +161,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
       console.log('🆕 Creating NEW peer for viewer:', viewerId);
 
-      logger.log('Stream details:', {
+      const streamDetails = {
         id: streamRef.current.id,
         active: streamRef.current.active,
         tracks: streamRef.current.getTracks().map(t => ({
@@ -171,9 +171,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           readyState: t.readyState,
           muted: t.muted
         }))
-      });
+      };
+      console.log('Stream details:', streamDetails);
+      logger.log('Stream details:', streamDetails);
 
       // Create a new peer for this viewer
+      console.log('🔧 Creating SimplePeer instance...');
       const peer = new SimplePeer({
         initiator: true,
         trickle: true,
@@ -197,10 +200,16 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         },
       });
 
+      console.log('✅ SimplePeer instance created successfully');
       logger.log('✅ Peer instance created for viewer (initiator: true)');
+      console.log('💾 Storing peer in peersRef.current');
       peersRef.current.set(viewerId, peer);
+      console.log('✅ Peer stored, current peer count:', peersRef.current.size);
 
+      console.log('🎧 Setting up peer.on(signal) listener');
       peer.on('signal', (signal) => {
+        console.log('✅ Broadcaster sending offer to viewer:', viewerId);
+        console.log('Offer type:', signal.type);
         logger.log('✅ Broadcaster sending offer to viewer:', viewerId);
         logger.log('Offer type:', signal.type);
         socketService.sendWebRTCOffer(sessionId, signal, viewerId);
