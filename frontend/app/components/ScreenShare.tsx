@@ -11,6 +11,8 @@ interface ScreenShareProps {
 }
 
 export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
+  console.log('🎬 ScreenShare component mounted - isAdmin:', isAdmin, 'sessionId:', sessionId);
+
   const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState('');
   const [isReceivingStream, setIsReceivingStream] = useState(false);
@@ -261,6 +263,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupViewerListeners = () => {
+    console.log('👁️ setupViewerListeners called');
     logger.log('Setting up viewer listeners');
     setConnectionStatus('connecting');
 
