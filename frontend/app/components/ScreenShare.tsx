@@ -29,11 +29,26 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const retryIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pendingStreamRef = useRef<MediaStream | null>(null);
+  const listenersSetupRef = useRef<boolean>(false);
 
   useEffect(() => {
-    if (!isAdmin) {
-      const interval = setupViewerListeners();
-      retryIntervalRef.current = interval;
+    if (!isAdmin && !listenersSetupRef.current) {
+      const setup = () => {
+        if (socketService.isConnected()) {
+          listenersSetupRef.current = true;
+          const interval = setupViewerListeners();
+          retryIntervalRef.current = interval;
+        } else {
+          const onConnect = () => {
+            listenersSetupRef.current = true;
+            const interval = setupViewerListeners();
+            retryIntervalRef.current = interval;
+            socketService.offConnect();
+          };
+          socketService.onConnect(onConnect);
+        }
+      };
+      setup();
     }
     // NOTE: Broadcaster listeners are setup in startScreenShare() when stream is ready
 
@@ -42,6 +57,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         clearInterval(retryIntervalRef.current);
       }
       cleanup();
+      socketService.offConnect();
+      listenersSetupRef.current = false;
     };
   }, [sessionId, isAdmin]);
 

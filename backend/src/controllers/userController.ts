@@ -167,7 +167,7 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     res.json(user);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      res.status(400).json({ error: error.errors[0].message });
+      res.status(400).json({ error: error.issues[0].message });
       return;
     }
     console.error('Update profile error:', error);

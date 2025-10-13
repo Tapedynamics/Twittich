@@ -38,6 +38,18 @@ class SocketService {
     return this.socket;
   }
 
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
+  onConnect(callback: () => void) {
+    this.socket?.on('connect', callback);
+  }
+
+  offConnect() {
+    this.socket?.off('connect');
+  }
+
   // Live streaming events
   joinLiveSession(sessionId: string) {
     this.socket?.emit('join-live', sessionId);
