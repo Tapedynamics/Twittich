@@ -17,6 +17,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
+  const [videoPaused, setVideoPaused] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -45,15 +46,24 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   useEffect(() => {
     if (isSharing && streamRef.current && videoRef.current && isAdmin) {
       logger.log('Assigning broadcaster stream to video element');
+      logger.log('Broadcaster stream tracks:', streamRef.current.getTracks().map(t => ({
+        kind: t.kind,
+        label: t.label,
+        enabled: t.enabled,
+        readyState: t.readyState
+      })));
+
       videoRef.current.srcObject = streamRef.current;
 
       videoRef.current.onloadedmetadata = async () => {
-        logger.log('Video metadata loaded');
+        logger.log('Broadcaster video metadata loaded');
         try {
           await videoRef.current?.play();
-          logger.log('Video playing successfully');
+          logger.log('Broadcaster video playing successfully');
+          setError('');
         } catch (err) {
-          logger.error('Error playing video:', err);
+          logger.error('Error playing broadcaster video:', err);
+          setError('Error starting video preview');
         }
       };
     }
@@ -201,18 +211,52 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
       peer.on('stream', (remoteStream) => {
         logger.log('Viewer received stream:', remoteStream);
+        logger.log('Stream tracks:', remoteStream.getTracks().map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState
+        })));
+
         setIsReceivingStream(true);
         setConnectionStatus('connected');
 
-        setTimeout(() => {
+        // Wait for video element to be ready
+        const assignStream = () => {
           if (videoRef.current) {
             logger.log('Assigning stream to video element');
             videoRef.current.srcObject = remoteStream;
-            videoRef.current.play().catch(err => logger.error('Play error:', err));
+
+            // Handle video loaded metadata
+            videoRef.current.onloadedmetadata = () => {
+              logger.log('Video metadata loaded for viewer');
+              if (videoRef.current) {
+                videoRef.current.play()
+                  .then(() => {
+                    logger.log('Video playing successfully');
+                    setError('');
+                  })
+                  .catch(err => {
+                    logger.error('Play error:', err);
+                    setError('Click on video to start playback');
+                  });
+              }
+            };
+
+            // Fallback: try to play immediately
+            videoRef.current.play().catch(err => {
+              logger.warn('Immediate play failed, waiting for metadata:', err);
+            });
           } else {
-            logger.error('Video ref still null after timeout!');
+            logger.error('Video ref still null!');
+            setError('Video element not ready');
           }
-        }, 100);
+        };
+
+        // Try immediately and with delay as fallback
+        assignStream();
+        setTimeout(assignStream, 100);
       });
 
       peer.on('error', (err) => {
@@ -402,6 +446,30 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     };
   }, []);
 
+  // Monitor video play/pause state
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    const handlePause = () => {
+      logger.log('Video paused');
+      setVideoPaused(true);
+    };
+
+    const handlePlay = () => {
+      logger.log('Video playing');
+      setVideoPaused(false);
+    };
+
+    videoElement.addEventListener('pause', handlePause);
+    videoElement.addEventListener('play', handlePlay);
+
+    return () => {
+      videoElement.removeEventListener('pause', handlePause);
+      videoElement.removeEventListener('play', handlePlay);
+    };
+  }, [isReceivingStream, isSharing]);
+
   return (
     <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
       {(isSharing || isReceivingStream) ? (
@@ -409,8 +477,15 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           ref={videoRef}
           autoPlay
           playsInline
-          muted={false}
+          muted={isAdmin} // Broadcaster sees own video muted, viewers hear audio
+          controls={false}
           className="w-full h-full object-contain"
+          onClick={() => {
+            // Allow manual play on click if autoplay failed
+            if (videoRef.current && videoRef.current.paused) {
+              videoRef.current.play().catch(err => console.error('Manual play error:', err));
+            }
+          }}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-black via-[#0a0e1a] to-black">
@@ -459,6 +534,23 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                 )}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Video paused overlay - only for viewers */}
+      {videoPaused && !isAdmin && (isSharing || isReceivingStream) && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10 cursor-pointer"
+          onClick={() => {
+            if (videoRef.current) {
+              videoRef.current.play().catch(err => console.error('Play error:', err));
+            }
+          }}
+        >
+          <div className="text-center">
+            <div className="text-6xl mb-4">▶️</div>
+            <p className="text-white text-xl font-bold">Click per avviare il video</p>
+            <p className="text-[var(--gold)] text-sm mt-2">Il browser richiede interazione utente</p>
           </div>
         </div>
       )}
