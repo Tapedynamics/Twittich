@@ -100,16 +100,28 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupBroadcasterListeners = () => {
-    logger.log('Setting up broadcaster listeners');
+    logger.log('📡 Setting up broadcaster listeners');
 
     // Broadcaster receives viewer join request
     socketService.onViewerJoined(({ viewerId }) => {
-      logger.log('Viewer joined, creating peer connection:', viewerId);
+      logger.log('✅ Viewer joined, creating peer connection:', viewerId);
 
       if (!streamRef.current) {
-        console.warn('Stream not ready yet, ignoring viewer join');
+        logger.error('❌ Stream not ready yet, ignoring viewer join');
         return;
       }
+
+      logger.log('Stream details:', {
+        id: streamRef.current.id,
+        active: streamRef.current.active,
+        tracks: streamRef.current.getTracks().map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled,
+          readyState: t.readyState,
+          muted: t.muted
+        }))
+      });
 
       // Create a new peer for this viewer
       const peer = new SimplePeer({
@@ -135,32 +147,53 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         },
       });
 
+      logger.log('✅ Peer instance created for viewer (initiator: true)');
       peersRef.current.set(viewerId, peer);
 
       peer.on('signal', (signal) => {
-        logger.log('Broadcaster sending offer to viewer:', viewerId);
+        logger.log('✅ Broadcaster sending offer to viewer:', viewerId);
+        logger.log('Offer type:', signal.type);
         socketService.sendWebRTCOffer(sessionId, signal, viewerId);
       });
 
+      peer.on('connect', () => {
+        logger.log('✅✅✅ Broadcaster peer connected to viewer:', viewerId);
+      });
+
       peer.on('error', (err) => {
-        logger.error('Broadcaster peer error for viewer', viewerId, err);
+        logger.error('❌ Broadcaster peer error for viewer', viewerId, err);
         peersRef.current.delete(viewerId);
       });
 
       peer.on('close', () => {
-        logger.log('Peer connection closed for viewer:', viewerId);
+        logger.log('❌ Peer connection closed for viewer:', viewerId);
         peersRef.current.delete(viewerId);
+      });
+
+      // Debug broadcaster peer events
+      peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
+        logger.log(`Broadcaster ICE State for ${viewerId}:`, { iceConnectionState, iceGatheringState });
+      });
+
+      peer.on('signalingStateChange', (state) => {
+        logger.log(`Broadcaster Signaling State for ${viewerId}:`, state);
       });
     });
 
     // Broadcaster receives answers from viewers
     socketService.onWebRTCAnswer(({ answer, senderId }) => {
-      logger.log('Broadcaster received answer from viewer:', senderId);
+      logger.log('✅ Broadcaster received answer from viewer:', senderId);
+      logger.log('Answer type:', answer.type);
       const peer = peersRef.current.get(senderId);
       if (peer) {
-        peer.signal(answer);
+        try {
+          peer.signal(answer);
+          logger.log('✅ Answer signaled to peer successfully');
+        } catch (err) {
+          logger.error('❌ Error signaling answer:', err);
+        }
       } else {
-        console.warn('No peer found for viewer:', senderId);
+        logger.error('❌ No peer found for viewer:', senderId);
       }
     });
   };
@@ -171,7 +204,15 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
     // Viewer receives offer from broadcaster
     socketService.onWebRTCOffer(({ offer, senderId }) => {
-      logger.log('Viewer received offer from broadcaster:', senderId);
+      logger.log('✅ Viewer received offer from broadcaster:', senderId);
+      logger.log('Offer details:', offer);
+
+      // Destroy old peer if exists
+      if (peerRef.current) {
+        logger.log('Destroying old peer connection');
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
 
       // Create peer as receiver (initiator: false)
       const peer = new SimplePeer({
@@ -196,21 +237,23 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         },
       });
 
+      logger.log('✅ Peer instance created (initiator: false)');
       peerRef.current = peer;
 
       peer.on('signal', (signal) => {
-        logger.log('Viewer sending answer to broadcaster');
+        logger.log('✅ Viewer generating signal (answer)');
+        logger.log('Answer details:', signal);
         socketService.sendWebRTCAnswer(sessionId, signal, senderId);
       });
 
       peer.on('connect', () => {
-        logger.log('Viewer peer connected!');
+        logger.log('✅✅✅ Viewer peer connected! Data channel open');
         setConnectionStatus('connected');
         setError('');
       });
 
       peer.on('stream', (remoteStream) => {
-        logger.log('Viewer received stream:', remoteStream);
+        logger.log('✅✅✅ VIEWER RECEIVED STREAM!', remoteStream);
         logger.log('Stream tracks:', remoteStream.getTracks().map(t => ({
           kind: t.kind,
           label: t.label,
@@ -260,12 +303,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       });
 
       peer.on('error', (err) => {
-        logger.error('Viewer peer error:', err);
-        setError('Impossibile connettersi allo streaming. Riprova...');
+        logger.error('❌ Viewer peer error:', err);
+        setError(`Errore connessione: ${err.message || 'Unknown'}`);
         setConnectionStatus('failed');
 
         // Auto-retry after 3 seconds
         setTimeout(() => {
+          logger.log('⏱️ Retrying after error...');
           if (peerRef.current) {
             peerRef.current.destroy();
             peerRef.current = null;
@@ -276,23 +320,44 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       });
 
       peer.on('close', () => {
-        logger.log('Viewer peer connection closed');
+        logger.log('❌ Viewer peer connection closed');
         setConnectionStatus('idle');
+        setIsReceivingStream(false);
+      });
+
+      // Debug all peer events
+      peer.on('data', (data) => {
+        logger.log('Received data:', data);
+      });
+
+      peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
+        logger.log('ICE State Change:', { iceConnectionState, iceGatheringState });
+      });
+
+      peer.on('signalingStateChange', (state) => {
+        logger.log('Signaling State Change:', state);
       });
 
       // Signal the peer with the offer
-      peer.signal(offer);
+      logger.log('✅ Signaling peer with offer...');
+      try {
+        peer.signal(offer);
+        logger.log('✅ Peer signaled successfully');
+      } catch (err) {
+        logger.error('❌ Error signaling peer:', err);
+        setError('Errore nel processare l\'offer');
+      }
     });
 
     // Listen for broadcaster ready event
     socketService.onBroadcasterReady(() => {
-      console.log('Broadcaster is now ready, requesting stream');
+      logger.log('✅ Broadcaster is now ready, requesting stream');
       socketService.requestStream(sessionId);
     });
 
     // Listen for broadcaster stopped event
     socketService.onBroadcasterStopped(() => {
-      console.log('Broadcaster stopped streaming');
+      logger.log('❌ Broadcaster stopped streaming');
       setIsReceivingStream(false);
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -303,15 +368,17 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       }
     });
 
-    // Retry requesting stream every 3 seconds until we receive it
-    console.log('Viewer requesting stream from broadcaster');
+    // Initial request
+    logger.log('📡 Viewer requesting stream from broadcaster');
     socketService.requestStream(sessionId);
 
+    // Retry requesting stream every 3 seconds until we receive it
     const retryInterval = setInterval(() => {
       if (!isReceivingStream) {
-        console.log('Retrying stream request...');
+        logger.log('⏱️ Retrying stream request...');
         socketService.requestStream(sessionId);
       } else {
+        logger.log('✅ Stream received, stopping retry interval');
         clearInterval(retryInterval);
       }
     }, 3000);
