@@ -32,9 +32,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     if (!isAdmin) {
       const interval = setupViewerListeners();
       retryIntervalRef.current = interval;
-    } else {
-      setupBroadcasterListeners();
     }
+    // NOTE: Broadcaster listeners are setup in startScreenShare() when stream is ready
 
     return () => {
       if (retryIntervalRef.current) {
@@ -492,7 +491,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       setIsSharing(true);
       setError('');
 
+      // Setup broadcaster listeners NOW that stream is ready
+      logger.log('Stream ready, setting up broadcaster listeners');
+      setupBroadcasterListeners();
+
       // Notify backend that stream is ready
+      logger.log('Notifying backend broadcaster is ready');
       socketService.broadcasterReady(sessionId);
 
       displayStream.getVideoTracks()[0].addEventListener('ended', () => {
