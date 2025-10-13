@@ -18,6 +18,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'failed'>('idle');
   const [videoPaused, setVideoPaused] = useState(false);
+  const [videoElementReady, setVideoElementReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -25,6 +26,7 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const peersRef = useRef<Map<string, SimplePeer.Instance>>(new Map());
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const retryIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -42,32 +44,61 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     };
   }, [sessionId, isAdmin]);
 
-  // Assign stream to video when sharing starts
+  // Assign pending stream when video element becomes ready
   useEffect(() => {
-    if (isSharing && streamRef.current && videoRef.current && isAdmin) {
-      logger.log('Assigning broadcaster stream to video element');
-      logger.log('Broadcaster stream tracks:', streamRef.current.getTracks().map(t => ({
-        kind: t.kind,
-        label: t.label,
-        enabled: t.enabled,
-        readyState: t.readyState
-      })));
+    if (videoElementReady && pendingStreamRef.current && videoRef.current) {
+      logger.log('✅ Video element ready, assigning pending stream');
+      const stream = pendingStreamRef.current;
+      pendingStreamRef.current = null;
 
-      videoRef.current.srcObject = streamRef.current;
-
-      videoRef.current.onloadedmetadata = async () => {
-        logger.log('Broadcaster video metadata loaded');
-        try {
-          await videoRef.current?.play();
-          logger.log('Broadcaster video playing successfully');
-          setError('');
-        } catch (err) {
-          logger.error('Error playing broadcaster video:', err);
-          setError('Error starting video preview');
+      videoRef.current.srcObject = stream;
+      videoRef.current.onloadedmetadata = () => {
+        logger.log('Video metadata loaded');
+        if (videoRef.current) {
+          videoRef.current.play()
+            .then(() => {
+              logger.log('✅ Video playing successfully');
+              setError('');
+            })
+            .catch(err => {
+              logger.error('Play error:', err);
+              setError('Click on video to start playback');
+            });
         }
       };
+
+      // Try to play immediately as fallback
+      videoRef.current.play().catch(err => {
+        logger.warn('Immediate play failed, waiting for metadata:', err);
+      });
     }
-  }, [isSharing, isAdmin]);
+  }, [videoElementReady, pendingStreamRef.current]);
+
+  // Assign stream to video when sharing starts (broadcaster)
+  useEffect(() => {
+    if (isSharing && streamRef.current && isAdmin) {
+      logger.log('Broadcaster starting stream');
+
+      if (videoRef.current && videoElementReady) {
+        logger.log('✅ Video element ready, assigning broadcaster stream immediately');
+        videoRef.current.srcObject = streamRef.current;
+        videoRef.current.onloadedmetadata = async () => {
+          logger.log('Broadcaster video metadata loaded');
+          try {
+            await videoRef.current?.play();
+            logger.log('Broadcaster video playing successfully');
+            setError('');
+          } catch (err) {
+            logger.error('Error playing broadcaster video:', err);
+            setError('Error starting video preview');
+          }
+        };
+      } else {
+        logger.log('⏱️ Video element not ready, storing as pending');
+        pendingStreamRef.current = streamRef.current;
+      }
+    }
+  }, [isSharing, isAdmin, videoElementReady]);
 
   const cleanup = () => {
     // Clean up viewer peer
@@ -282,41 +313,34 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         setIsReceivingStream(true);
         setConnectionStatus('connected');
 
-        // Wait for video element to be ready
-        const assignStream = () => {
-          if (videoRef.current) {
-            logger.log('Assigning stream to video element');
-            videoRef.current.srcObject = remoteStream;
+        // Check if video element is ready
+        if (videoRef.current && videoElementReady) {
+          logger.log('✅ Video element ready, assigning stream immediately');
+          videoRef.current.srcObject = remoteStream;
 
-            // Handle video loaded metadata
-            videoRef.current.onloadedmetadata = () => {
-              logger.log('Video metadata loaded for viewer');
-              if (videoRef.current) {
-                videoRef.current.play()
-                  .then(() => {
-                    logger.log('Video playing successfully');
-                    setError('');
-                  })
-                  .catch(err => {
-                    logger.error('Play error:', err);
-                    setError('Click on video to start playback');
-                  });
-              }
-            };
+          videoRef.current.onloadedmetadata = () => {
+            logger.log('Video metadata loaded for viewer');
+            if (videoRef.current) {
+              videoRef.current.play()
+                .then(() => {
+                  logger.log('✅ Video playing successfully');
+                  setError('');
+                })
+                .catch(err => {
+                  logger.error('Play error:', err);
+                  setError('Click on video to start playback');
+                });
+            }
+          };
 
-            // Fallback: try to play immediately
-            videoRef.current.play().catch(err => {
-              logger.warn('Immediate play failed, waiting for metadata:', err);
-            });
-          } else {
-            logger.error('Video ref still null!');
-            setError('Video element not ready');
-          }
-        };
-
-        // Try immediately and with delay as fallback
-        assignStream();
-        setTimeout(assignStream, 100);
+          // Try to play immediately
+          videoRef.current.play().catch(err => {
+            logger.warn('Immediate play failed, waiting for metadata:', err);
+          });
+        } else {
+          logger.log('⏱️ Video element not ready yet, storing stream as pending');
+          pendingStreamRef.current = remoteStream;
+        }
       });
 
       peer.on('error', (err) => {
@@ -554,11 +578,23 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     };
   }, [isReceivingStream, isSharing]);
 
+  // Callback ref to track when video element is mounted
+  const setVideoRef = (element: HTMLVideoElement | null) => {
+    videoRef.current = element;
+    if (element) {
+      logger.log('✅ Video element mounted and ready');
+      setVideoElementReady(true);
+    } else {
+      logger.log('❌ Video element unmounted');
+      setVideoElementReady(false);
+    }
+  };
+
   return (
     <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
       {(isSharing || isReceivingStream) ? (
         <video
-          ref={videoRef}
+          ref={setVideoRef}
           autoPlay
           playsInline
           muted={isAdmin} // Broadcaster sees own video muted, viewers hear audio
