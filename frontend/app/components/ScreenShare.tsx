@@ -102,6 +102,10 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const setupBroadcasterListeners = () => {
     logger.log('📡 Setting up broadcaster listeners');
 
+    // CRITICAL: Remove ALL old listeners first to prevent duplicate peer connections
+    socketService.offViewerJoined();
+    socketService.offWebRTCAnswer();
+
     // Broadcaster receives viewer join request
     socketService.onViewerJoined(({ viewerId }) => {
       logger.log('✅ Viewer joined, creating peer connection:', viewerId);
@@ -109,6 +113,14 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
       if (!streamRef.current) {
         logger.error('❌ Stream not ready yet, ignoring viewer join');
         return;
+      }
+
+      // CRITICAL: Check if peer already exists for this viewer
+      const existingPeer = peersRef.current.get(viewerId);
+      if (existingPeer) {
+        logger.log('⚠️ Peer already exists for viewer, destroying old one:', viewerId);
+        existingPeer.destroy();
+        peersRef.current.delete(viewerId);
       }
 
       logger.log('Stream details:', {
@@ -201,6 +213,11 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   const setupViewerListeners = () => {
     logger.log('Setting up viewer listeners');
     setConnectionStatus('connecting');
+
+    // CRITICAL: Remove ALL old listeners first to prevent duplicate peer connections
+    socketService.offWebRTCOffer();
+    socketService.offBroadcasterReady();
+    socketService.offBroadcasterStopped();
 
     // Viewer receives offer from broadcaster
     socketService.onWebRTCOffer(({ offer, senderId }) => {
