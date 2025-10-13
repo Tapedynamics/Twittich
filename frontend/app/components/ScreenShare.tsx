@@ -130,14 +130,19 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const setupBroadcasterListeners = () => {
+    console.log('📡 Setting up broadcaster listeners');
     logger.log('📡 Setting up broadcaster listeners');
 
     // CRITICAL: Remove ALL old listeners first to prevent duplicate peer connections
+    console.log('🧹 Removing old listeners');
     socketService.offViewerJoined();
     socketService.offWebRTCAnswer();
+    console.log('✅ Old listeners removed');
 
     // Broadcaster receives viewer join request
+    console.log('🎧 Setting up viewer-joined listener');
     socketService.onViewerJoined(({ viewerId }) => {
+      console.log('✅ Viewer joined, creating peer connection:', viewerId);
       logger.log('✅ Viewer joined, creating peer connection:', viewerId);
 
       if (!streamRef.current) {
@@ -223,7 +228,10 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     });
 
     // Broadcaster receives answers from viewers
+    console.log('🎧 Setting up webrtc-answer listener');
     socketService.onWebRTCAnswer(({ answer, senderId }) => {
+      console.log('✅ Broadcaster received answer from viewer:', senderId);
+      console.log('Answer type:', answer.type);
       logger.log('✅ Broadcaster received answer from viewer:', senderId);
       logger.log('Answer type:', answer.type);
       const peer = peersRef.current.get(senderId);
