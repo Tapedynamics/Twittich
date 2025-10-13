@@ -18,9 +18,22 @@ dotenv.config();
 
 const app = express();
 const httpServer = createServer(app);
+
+// Configure allowed origins for CORS
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [
+      process.env.FRONTEND_URL || 'https://twittich.vercel.app',
+      'https://twittich.vercel.app',
+    ]
+  : [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      process.env.FRONTEND_URL || 'http://localhost:3000',
+    ];
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST'],
   },
@@ -49,7 +62,17 @@ app.use(helmet({
 
 // CORS Configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS: Blocked request from unauthorized origin: ${origin}`);
+      callback(new Error(`Origin ${origin} not allowed by CORS policy. Allowed origins: ${allowedOrigins.join(', ')}`));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
