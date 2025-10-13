@@ -273,7 +273,10 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     socketService.offBroadcasterStopped();
 
     // Viewer receives offer from broadcaster
+    console.log('🎧 Setting up webrtc-offer listener');
     socketService.onWebRTCOffer(({ offer, senderId }) => {
+      console.log('✅ Viewer received offer from broadcaster:', senderId);
+      console.log('Offer details:', offer);
       logger.log('✅ Viewer received offer from broadcaster:', senderId);
       logger.log('Offer details:', offer);
 
