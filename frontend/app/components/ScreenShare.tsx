@@ -202,9 +202,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         stream: streamRef.current,
         config: {
           iceServers: [
+            // STUN servers (for discovering public IP)
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            // TURN servers (relay for restricted networks/mobile)
             {
               urls: 'turn:openrelay.metered.ca:80',
               username: 'openrelayproject',
@@ -215,7 +219,25 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
               username: 'openrelayproject',
               credential: 'openrelayproject',
             },
+            {
+              urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+              username: 'openrelayproject',
+              credential: 'openrelayproject',
+            },
+            // Additional TURN servers for mobile reliability
+            {
+              urls: 'turn:numb.viagenie.ca',
+              username: 'webrtc@live.com',
+              credential: 'muazkh',
+            },
+            {
+              urls: 'turn:numb.viagenie.ca:3478?transport=tcp',
+              username: 'webrtc@live.com',
+              credential: 'muazkh',
+            },
           ],
+          iceTransportPolicy: 'all', // Try all connection types
+          iceCandidatePoolSize: 10, // Gather more ICE candidates
         },
       });
 
@@ -253,10 +275,12 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
       // Debug broadcaster peer events
       peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
+        console.log(`🧊 Broadcaster ICE State for ${viewerId}:`, iceConnectionState, '/', iceGatheringState);
         logger.log(`Broadcaster ICE State for ${viewerId}:`, { iceConnectionState, iceGatheringState });
       });
 
       peer.on('signalingStateChange', (state) => {
+        console.log(`📡 Broadcaster Signaling State for ${viewerId}:`, state);
         logger.log(`Broadcaster Signaling State for ${viewerId}:`, state);
       });
     });
@@ -317,9 +341,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           trickle: true,
           config: {
             iceServers: [
+              // STUN servers (for discovering public IP)
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
               { urls: 'stun:stun2.l.google.com:19302' },
+              { urls: 'stun:stun3.l.google.com:19302' },
+              { urls: 'stun:stun4.l.google.com:19302' },
+              // TURN servers (relay for restricted networks/mobile)
               {
                 urls: 'turn:openrelay.metered.ca:80',
                 username: 'openrelayproject',
@@ -330,7 +358,25 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                 username: 'openrelayproject',
                 credential: 'openrelayproject',
               },
+              {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+              },
+              // Additional TURN servers for mobile reliability
+              {
+                urls: 'turn:numb.viagenie.ca',
+                username: 'webrtc@live.com',
+                credential: 'muazkh',
+              },
+              {
+                urls: 'turn:numb.viagenie.ca:3478?transport=tcp',
+                username: 'webrtc@live.com',
+                credential: 'muazkh',
+              },
             ],
+            iceTransportPolicy: 'all', // Try all connection types
+            iceCandidatePoolSize: 10, // Gather more ICE candidates
           },
         });
 
@@ -421,11 +467,22 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         });
 
         peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
-          logger.log('ICE State Change:', { iceConnectionState, iceGatheringState });
+          console.log(`🧊 Viewer ICE State:`, iceConnectionState, '/', iceGatheringState);
+          logger.log('Viewer ICE State Change:', { iceConnectionState, iceGatheringState });
+
+          // Log specific states for debugging
+          if (iceConnectionState === 'connected') {
+            console.log('✅ ICE connection established!');
+          } else if (iceConnectionState === 'failed') {
+            console.error('❌ ICE connection failed - this usually means TURN server needed but not working');
+          } else if (iceConnectionState === 'disconnected') {
+            console.warn('⚠️ ICE connection disconnected');
+          }
         });
 
         peer.on('signalingStateChange', (state) => {
-          logger.log('Signaling State Change:', state);
+          console.log(`📡 Viewer Signaling State:`, state);
+          logger.log('Viewer Signaling State Change:', state);
         });
 
         // Signal the peer with the initial offer
