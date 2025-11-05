@@ -428,43 +428,57 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         });
 
         peer.on('stream', (remoteStream) => {
+          console.log('✅✅✅ VIEWER RECEIVED STREAM!', remoteStream);
           logger.log('✅✅✅ VIEWER RECEIVED STREAM!', remoteStream);
-          logger.log('Stream tracks:', remoteStream.getTracks().map(t => ({
+
+          const tracks = remoteStream.getTracks().map(t => ({
             kind: t.kind,
             label: t.label,
             enabled: t.enabled,
             muted: t.muted,
             readyState: t.readyState
-          })));
+          }));
+          console.log('Stream tracks:', tracks);
+          logger.log('Stream tracks:', tracks);
 
           setIsReceivingStream(true);
           setConnectionStatus('connected');
 
           // Check if video element is ready
           if (videoRef.current && videoElementReady) {
+            console.log('✅ Video element ready, assigning stream');
             logger.log('✅ Video element ready, assigning stream immediately');
             videoRef.current.srcObject = remoteStream;
 
             videoRef.current.onloadedmetadata = () => {
+              console.log('📹 Video metadata loaded');
               logger.log('Video metadata loaded for viewer');
+
               if (videoRef.current) {
+                console.log('🎬 Attempting autoplay...');
                 videoRef.current.play()
                   .then(() => {
+                    console.log('✅ Video autoplay SUCCESS!');
                     logger.log('✅ Video playing successfully');
                     setError('');
                   })
                   .catch(err => {
+                    console.error('❌ Autoplay FAILED:', err);
+                    console.log('💡 User interaction required - show tap overlay');
                     logger.error('Play error:', err);
-                    setError('Click on video to start playback');
+                    setError('Tap video to start playback');
                   });
               }
             };
 
             // Try to play immediately
+            console.log('⚡ Trying immediate play...');
             videoRef.current.play().catch(err => {
+              console.warn('⏱️ Immediate play failed (normal), waiting for metadata:', err.message);
               logger.warn('Immediate play failed, waiting for metadata:', err);
             });
           } else {
+            console.log('⏱️ Video element NOT ready, storing as pending');
             logger.log('⏱️ Video element not ready yet, storing stream as pending');
             pendingStreamRef.current = remoteStream;
           }
@@ -772,13 +786,17 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           ref={setVideoRef}
           autoPlay
           playsInline
-          muted={isAdmin} // Broadcaster sees own video muted, viewers hear audio
+          muted={true} // ALWAYS muted for autoplay to work on mobile!
           controls={false}
           className="w-full h-full object-contain"
           onClick={() => {
-            // Allow manual play on click if autoplay failed
-            if (videoRef.current && videoRef.current.paused) {
-              videoRef.current.play().catch(err => console.error('Manual play error:', err));
+            // Unmute and play on click
+            if (videoRef.current) {
+              console.log('📱 User tapped video - unmuting');
+              videoRef.current.muted = false;
+              if (videoRef.current.paused) {
+                videoRef.current.play().catch(err => console.error('Manual play error:', err));
+              }
             }
           }}
         />
@@ -849,6 +867,21 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
             <p className="text-white text-xl font-bold">Click per avviare il video</p>
             <p className="text-[var(--gold)] text-sm mt-2">Il browser richiede interazione utente</p>
           </div>
+        </div>
+      )}
+
+      {/* Audio indicator - tap to unmute */}
+      {!isAdmin && isReceivingStream && videoRef.current?.muted && (
+        <div
+          className="absolute top-4 left-4 z-20 bg-black/80 px-4 py-2 rounded-lg border-2 border-[var(--gold)] cursor-pointer hover:bg-black/90 transition-colors animate-pulse"
+          onClick={() => {
+            if (videoRef.current) {
+              console.log('🔊 Unmuting video on user request');
+              videoRef.current.muted = false;
+            }
+          }}
+        >
+          <p className="text-[var(--gold)] text-sm font-bold">🔇 Tap to enable audio</p>
         </div>
       )}
 
