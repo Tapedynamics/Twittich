@@ -227,10 +227,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
 
       console.log('🎧 Setting up peer.on(signal) listener');
       peer.on('signal', (signal) => {
-        console.log('✅ Broadcaster sending offer to viewer:', viewerId);
-        console.log('Offer type:', signal.type);
-        logger.log('✅ Broadcaster sending offer to viewer:', viewerId);
-        logger.log('Offer type:', signal.type);
+        console.log('📤 Broadcaster emitting signal to viewer:', viewerId);
+        console.log('📦 Signal structure:', JSON.stringify(signal, null, 2));
+        console.log('Signal type:', signal.type);
+        console.log('Has candidate?:', 'candidate' in signal);
+        console.log('Has sdp?:', 'sdp' in signal);
+        logger.log('✅ Broadcaster sending signal to viewer:', viewerId);
+        logger.log('Signal details:', signal);
         socketService.sendWebRTCOffer(sessionId, signal, viewerId);
       });
 
@@ -294,7 +297,10 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     console.log('🎧 Setting up webrtc-offer listener');
     socketService.onWebRTCOffer(({ offer, senderId }) => {
       console.log('✅ Viewer received signal from broadcaster:', senderId);
+      console.log('📦 Signal structure:', JSON.stringify(offer, null, 2));
       console.log('Signal type:', offer.type);
+      console.log('Has candidate?:', 'candidate' in offer);
+      console.log('Has sdp?:', 'sdp' in offer);
       logger.log('✅ Viewer received signal from broadcaster:', senderId);
       logger.log('Signal details:', offer);
 
