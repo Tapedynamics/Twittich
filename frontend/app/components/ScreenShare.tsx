@@ -261,17 +261,18 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     // Broadcaster receives answers from viewers
     console.log('🎧 Setting up webrtc-answer listener');
     socketService.onWebRTCAnswer(({ answer, senderId }) => {
-      console.log('✅ Broadcaster received answer from viewer:', senderId);
-      console.log('Answer type:', answer.type);
-      logger.log('✅ Broadcaster received answer from viewer:', senderId);
-      logger.log('Answer type:', answer.type);
+      console.log('✅ Broadcaster received signal from viewer:', senderId);
+      console.log('Signal type:', answer.type);
+      logger.log('✅ Broadcaster received signal from viewer:', senderId);
+      logger.log('Signal details:', answer);
+
       const peer = peersRef.current.get(senderId);
       if (peer) {
         try {
           peer.signal(answer);
-          logger.log('✅ Answer signaled to peer successfully');
+          logger.log('✅ Signal forwarded to peer successfully');
         } catch (err) {
-          logger.error('❌ Error signaling answer:', err);
+          logger.error('❌ Error signaling to peer:', err);
         }
       } else {
         logger.error('❌ No peer found for viewer:', senderId);
@@ -292,143 +293,155 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     // Viewer receives offer from broadcaster
     console.log('🎧 Setting up webrtc-offer listener');
     socketService.onWebRTCOffer(({ offer, senderId }) => {
-      console.log('✅ Viewer received offer from broadcaster:', senderId);
-      console.log('Offer details:', offer);
-      logger.log('✅ Viewer received offer from broadcaster:', senderId);
-      logger.log('Offer details:', offer);
+      console.log('✅ Viewer received signal from broadcaster:', senderId);
+      console.log('Signal type:', offer.type);
+      logger.log('✅ Viewer received signal from broadcaster:', senderId);
+      logger.log('Signal details:', offer);
 
-      // Destroy old peer if exists
-      if (peerRef.current) {
-        logger.log('Destroying old peer connection');
-        peerRef.current.destroy();
-        peerRef.current = null;
-      }
+      // Check if this is an offer (first signal) or ICE candidate (subsequent signals)
+      const isInitialOffer = offer.type === 'offer';
 
-      // Create peer as receiver (initiator: false)
-      const peer = new SimplePeer({
-        initiator: false,
-        trickle: true,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            {
-              urls: 'turn:openrelay.metered.ca:80',
-              username: 'openrelayproject',
-              credential: 'openrelayproject',
-            },
-            {
-              urls: 'turn:openrelay.metered.ca:443',
-              username: 'openrelayproject',
-              credential: 'openrelayproject',
-            },
-          ],
-        },
-      });
+      if (isInitialOffer && !peerRef.current) {
+        // This is the initial offer - create new peer
+        logger.log('📝 Received initial offer, creating peer');
 
-      logger.log('✅ Peer instance created (initiator: false)');
-      peerRef.current = peer;
+        // Create peer as receiver (initiator: false)
+        const peer = new SimplePeer({
+          initiator: false,
+          trickle: true,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' },
+              {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+              },
+              {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelayproject',
+                credential: 'openrelayproject',
+              },
+            ],
+          },
+        });
 
-      peer.on('signal', (signal) => {
-        logger.log('✅ Viewer generating signal (answer)');
-        logger.log('Answer details:', signal);
-        socketService.sendWebRTCAnswer(sessionId, signal, senderId);
-      });
+        logger.log('✅ Peer instance created (initiator: false)');
+        peerRef.current = peer;
 
-      peer.on('connect', () => {
-        logger.log('✅✅✅ Viewer peer connected! Data channel open');
-        setConnectionStatus('connected');
-        setError('');
-      });
+        peer.on('signal', (signal) => {
+          logger.log('✅ Viewer generating signal (answer)');
+          logger.log('Answer details:', signal);
+          socketService.sendWebRTCAnswer(sessionId, signal, senderId);
+        });
 
-      peer.on('stream', (remoteStream) => {
-        logger.log('✅✅✅ VIEWER RECEIVED STREAM!', remoteStream);
-        logger.log('Stream tracks:', remoteStream.getTracks().map(t => ({
-          kind: t.kind,
-          label: t.label,
-          enabled: t.enabled,
-          muted: t.muted,
-          readyState: t.readyState
-        })));
+        peer.on('connect', () => {
+          logger.log('✅✅✅ Viewer peer connected! Data channel open');
+          setConnectionStatus('connected');
+          setError('');
+        });
 
-        setIsReceivingStream(true);
-        setConnectionStatus('connected');
+        peer.on('stream', (remoteStream) => {
+          logger.log('✅✅✅ VIEWER RECEIVED STREAM!', remoteStream);
+          logger.log('Stream tracks:', remoteStream.getTracks().map(t => ({
+            kind: t.kind,
+            label: t.label,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState
+          })));
 
-        // Check if video element is ready
-        if (videoRef.current && videoElementReady) {
-          logger.log('✅ Video element ready, assigning stream immediately');
-          videoRef.current.srcObject = remoteStream;
+          setIsReceivingStream(true);
+          setConnectionStatus('connected');
 
-          videoRef.current.onloadedmetadata = () => {
-            logger.log('Video metadata loaded for viewer');
-            if (videoRef.current) {
-              videoRef.current.play()
-                .then(() => {
-                  logger.log('✅ Video playing successfully');
-                  setError('');
-                })
-                .catch(err => {
-                  logger.error('Play error:', err);
-                  setError('Click on video to start playback');
-                });
-            }
-          };
+          // Check if video element is ready
+          if (videoRef.current && videoElementReady) {
+            logger.log('✅ Video element ready, assigning stream immediately');
+            videoRef.current.srcObject = remoteStream;
 
-          // Try to play immediately
-          videoRef.current.play().catch(err => {
-            logger.warn('Immediate play failed, waiting for metadata:', err);
-          });
-        } else {
-          logger.log('⏱️ Video element not ready yet, storing stream as pending');
-          pendingStreamRef.current = remoteStream;
-        }
-      });
+            videoRef.current.onloadedmetadata = () => {
+              logger.log('Video metadata loaded for viewer');
+              if (videoRef.current) {
+                videoRef.current.play()
+                  .then(() => {
+                    logger.log('✅ Video playing successfully');
+                    setError('');
+                  })
+                  .catch(err => {
+                    logger.error('Play error:', err);
+                    setError('Click on video to start playback');
+                  });
+              }
+            };
 
-      peer.on('error', (err) => {
-        logger.error('❌ Viewer peer error:', err);
-        setError(`Errore connessione: ${err.message || 'Unknown'}`);
-        setConnectionStatus('failed');
-
-        // Auto-retry after 3 seconds
-        setTimeout(() => {
-          logger.log('⏱️ Retrying after error...');
-          if (peerRef.current) {
-            peerRef.current.destroy();
-            peerRef.current = null;
+            // Try to play immediately
+            videoRef.current.play().catch(err => {
+              logger.warn('Immediate play failed, waiting for metadata:', err);
+            });
+          } else {
+            logger.log('⏱️ Video element not ready yet, storing stream as pending');
+            pendingStreamRef.current = remoteStream;
           }
-          setConnectionStatus('connecting');
-          socketService.requestStream(sessionId);
-        }, 3000);
-      });
+        });
 
-      peer.on('close', () => {
-        logger.log('❌ Viewer peer connection closed');
-        setConnectionStatus('idle');
-        setIsReceivingStream(false);
-      });
+        peer.on('error', (err) => {
+          logger.error('❌ Viewer peer error:', err);
+          setError(`Errore connessione: ${err.message || 'Unknown'}`);
+          setConnectionStatus('failed');
 
-      // Debug all peer events
-      peer.on('data', (data) => {
-        logger.log('Received data:', data);
-      });
+          // Auto-retry after 3 seconds
+          setTimeout(() => {
+            logger.log('⏱️ Retrying after error...');
+            if (peerRef.current) {
+              peerRef.current.destroy();
+              peerRef.current = null;
+            }
+            setConnectionStatus('connecting');
+            socketService.requestStream(sessionId);
+          }, 3000);
+        });
 
-      peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
-        logger.log('ICE State Change:', { iceConnectionState, iceGatheringState });
-      });
+        peer.on('close', () => {
+          logger.log('❌ Viewer peer connection closed');
+          setConnectionStatus('idle');
+          setIsReceivingStream(false);
+        });
 
-      peer.on('signalingStateChange', (state) => {
-        logger.log('Signaling State Change:', state);
-      });
+        // Debug all peer events
+        peer.on('data', (data) => {
+          logger.log('Received data:', data);
+        });
 
-      // Signal the peer with the offer
-      logger.log('✅ Signaling peer with offer...');
-      try {
-        peer.signal(offer);
-        logger.log('✅ Peer signaled successfully');
-      } catch (err) {
-        logger.error('❌ Error signaling peer:', err);
-        setError('Errore nel processare l\'offer');
+        peer.on('iceStateChange', (iceConnectionState, iceGatheringState) => {
+          logger.log('ICE State Change:', { iceConnectionState, iceGatheringState });
+        });
+
+        peer.on('signalingStateChange', (state) => {
+          logger.log('Signaling State Change:', state);
+        });
+
+        // Signal the peer with the initial offer
+        logger.log('✅ Signaling peer with initial offer...');
+        try {
+          peer.signal(offer);
+          logger.log('✅ Initial offer signaled successfully');
+        } catch (err) {
+          logger.error('❌ Error signaling initial offer:', err);
+          setError('Errore nel processare l\'offer');
+        }
+      } else if (peerRef.current) {
+        // This is a subsequent signal (likely ICE candidate) - signal to existing peer
+        logger.log('📡 Received subsequent signal (ICE candidate), signaling to existing peer');
+        try {
+          peerRef.current.signal(offer);
+          logger.log('✅ Signal forwarded to peer successfully');
+        } catch (err) {
+          logger.error('❌ Error signaling to peer:', err);
+        }
+      } else {
+        logger.warn('⚠️ Received signal but no peer exists and not initial offer');
       }
     });
 
