@@ -238,6 +238,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
           ],
           iceTransportPolicy: 'all', // Try all connection types
           iceCandidatePoolSize: 10, // Gather more ICE candidates
+          bundlePolicy: 'max-bundle', // Optimize for mobile
+          rtcpMuxPolicy: 'require', // Reduce port usage
+        },
+        // SimplePeer options
+        offerOptions: {
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
         },
       });
 
@@ -377,6 +384,13 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
             ],
             iceTransportPolicy: 'all', // Try all connection types
             iceCandidatePoolSize: 10, // Gather more ICE candidates
+            bundlePolicy: 'max-bundle', // Optimize for mobile
+            rtcpMuxPolicy: 'require', // Reduce port usage
+          },
+          // SimplePeer options
+          answerOptions: {
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true,
           },
         });
 
@@ -439,20 +453,24 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
         });
 
         peer.on('error', (err) => {
+          console.error('❌ Viewer peer error:', err);
           logger.error('❌ Viewer peer error:', err);
-          setError(`Errore connessione: ${err.message || 'Unknown'}`);
+
+          // Check if it's a connection timeout (common on mobile)
+          const isConnectionTimeout = err.message && err.message.includes('Connection failed');
+
+          if (isConnectionTimeout) {
+            setError('Mobile connection timeout - please refresh and try again');
+            console.warn('⚠️ Connection timeout on mobile - TURN servers may be slow or blocked');
+          } else {
+            setError(`Errore connessione: ${err.message || 'Unknown'}`);
+          }
+
           setConnectionStatus('failed');
 
-          // Auto-retry after 3 seconds
-          setTimeout(() => {
-            logger.log('⏱️ Retrying after error...');
-            if (peerRef.current) {
-              peerRef.current.destroy();
-              peerRef.current = null;
-            }
-            setConnectionStatus('connecting');
-            socketService.requestStream(sessionId);
-          }, 3000);
+          // Don't auto-retry - let user manually retry by refreshing
+          // Auto-retry can interfere with slow mobile ICE gathering (20-30s on TURN)
+          console.log('💡 TIP: On mobile, connection can take 20-30 seconds. Refresh page to try again.');
         });
 
         peer.on('close', () => {
@@ -531,16 +549,29 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
     logger.log('📡 Viewer requesting stream from broadcaster');
     socketService.requestStream(sessionId);
 
-    // Retry requesting stream every 3 seconds until we receive it
+    // Retry requesting stream every 5 seconds until peer connection is established
+    // Slower interval to avoid flooding on mobile networks
+    let requestCount = 0;
+    const MAX_REQUESTS = 6; // Stop after 30 seconds (6 * 5s)
+
     const retryInterval = setInterval(() => {
+      requestCount++;
+
+      if (peerRef.current || requestCount >= MAX_REQUESTS) {
+        // Stop polling once peer is created or after max attempts
+        logger.log('✅ Stopping stream requests - peer created or max attempts reached');
+        clearInterval(retryInterval);
+        return;
+      }
+
       if (!isReceivingStream) {
-        logger.log('⏱️ Retrying stream request...');
+        logger.log(`⏱️ Retrying stream request (${requestCount}/${MAX_REQUESTS})...`);
         socketService.requestStream(sessionId);
       } else {
         logger.log('✅ Stream received, stopping retry interval');
         clearInterval(retryInterval);
       }
-    }, 3000);
+    }, 5000); // Increased from 3s to 5s for mobile
 
     // Store interval ref for cleanup
     return retryInterval;
@@ -765,14 +796,16 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                   <>
                     <div className="animate-spin rounded-full h-16 w-16 border-4 border-[var(--bull-green)] border-t-transparent mx-auto mb-4"></div>
                     <p className="text-[var(--bull-green)] text-xl mb-2 neon-green">Connessione in corso...</p>
-                    <p className="text-[var(--cyan-neon)] text-sm opacity-70">Stabilendo la connessione peer-to-peer</p>
+                    <p className="text-[var(--cyan-neon)] text-sm opacity-70 mb-2">Stabilendo la connessione peer-to-peer</p>
+                    <p className="text-[var(--gold)] text-xs opacity-60">📱 Su mobile può richiedere 20-30 secondi</p>
                   </>
                 )}
                 {connectionStatus === 'failed' && (
                   <>
                     <div className="text-6xl mb-4 pulse-glow">⚠️</div>
                     <p className="text-[var(--bear-red)] text-xl mb-2 neon-red">Connessione fallita</p>
-                    <p className="text-[var(--gold)] text-sm opacity-70">Nuovo tentativo tra 3 secondi...</p>
+                    <p className="text-[var(--gold)] text-sm opacity-70 mb-2">Ricarica la pagina per riprovare</p>
+                    <p className="text-[var(--cyan-neon)] text-xs opacity-60">💡 Suggerimento: Usa il desktop per connessioni più stabili</p>
                   </>
                 )}
                 {error && (
