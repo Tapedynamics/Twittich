@@ -241,8 +241,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                 'turn:46.62.246.152:3478?transport=tcp',
                 'turn:46.62.246.152:3478?transport=udp'
               ],
-              username: `${Math.floor(Date.now() / 1000) + 86400}:twittich`,
-              credential: '139af677ef820cbb2cf1338dfe4d1f45af3e0c622a6d0abd11e881124614a245'
+              username: 'twittich',
+              credential: 'a475955cb7355cbf27f1302258c76861'
             },
           ],
           iceTransportPolicy: 'all', // Try all connection types
@@ -396,8 +396,8 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                   'turn:46.62.246.152:3478?transport=tcp',
                   'turn:46.62.246.152:3478?transport=udp'
                 ],
-                username: `${Math.floor(Date.now() / 1000) + 86400}:twittich`,
-                credential: '139af677ef820cbb2cf1338dfe4d1f45af3e0c622a6d0abd11e881124614a245'
+                username: 'twittich',
+                credential: 'a475955cb7355cbf27f1302258c76861'
               },
             ],
             iceTransportPolicy: 'all', // Try all connection types
