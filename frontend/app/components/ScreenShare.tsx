@@ -695,14 +695,27 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
   };
 
   const stopScreenShare = () => {
-    // Notify backend that broadcaster stopped streaming
-    if (isAdmin) {
-      socketService.broadcasterStopped(sessionId);
-    }
+    try {
+      // Clean up local resources FIRST (even if socket fails)
+      cleanup();
+      setIsSharing(false);
+      setIsReceivingStream(false);
 
-    cleanup();
-    setIsSharing(false);
-    setIsReceivingStream(false);
+      // Then try to notify backend (but don't block if it fails)
+      if (isAdmin) {
+        try {
+          socketService.broadcasterStopped(sessionId);
+        } catch (err) {
+          console.warn('Failed to notify backend of stream stop:', err);
+          // Non-critical error - local cleanup already done
+        }
+      }
+    } catch (err) {
+      console.error('Error stopping screen share:', err);
+      // Force cleanup even on error
+      setIsSharing(false);
+      setIsReceivingStream(false);
+    }
   };
 
   const toggleMicMute = () => {
