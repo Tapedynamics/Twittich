@@ -235,6 +235,15 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
               username: 'webrtc@live.com',
               credential: 'muazkh',
             },
+            // YOUR DEDICATED TURN SERVER (Hetzner VPS) - Priority!
+            {
+              urls: [
+                'turn:46.62.246.152:3478?transport=tcp',
+                'turn:46.62.246.152:3478?transport=udp'
+              ],
+              username: `${Math.floor(Date.now() / 1000) + 86400}:twittich`,
+              credential: '139af677ef820cbb2cf1338dfe4d1f45af3e0c622a6d0abd11e881124614a245'
+            },
           ],
           iceTransportPolicy: 'all', // Try all connection types
           iceCandidatePoolSize: 10, // Gather more ICE candidates
@@ -380,6 +389,15 @@ export default function ScreenShare({ isAdmin, sessionId }: ScreenShareProps) {
                 urls: 'turn:numb.viagenie.ca:3478?transport=tcp',
                 username: 'webrtc@live.com',
                 credential: 'muazkh',
+              },
+              // YOUR DEDICATED TURN SERVER (Hetzner VPS) - Priority!
+              {
+                urls: [
+                  'turn:46.62.246.152:3478?transport=tcp',
+                  'turn:46.62.246.152:3478?transport=udp'
+                ],
+                username: `${Math.floor(Date.now() / 1000) + 86400}:twittich`,
+                credential: '139af677ef820cbb2cf1338dfe4d1f45af3e0c622a6d0abd11e881124614a245'
               },
             ],
             iceTransportPolicy: 'all', // Try all connection types
