@@ -155,13 +155,21 @@ export default function LivePage() {
     try {
       console.log('Stopping live session:', liveSession.id);
 
-      await axiosInstance.post(`/live/${liveSession.id}/stop`);
+      // Try to notify backend, but don't fail if backend is down
+      try {
+        await axiosInstance.post(`/live/${liveSession.id}/stop`);
+        console.log('Live session stopped successfully');
+      } catch (apiError: any) {
+        console.warn('Backend stop failed (non-critical):', apiError.message);
+        // Continue anyway - local session cleanup is more important
+      }
+
+      // Always clear local session state (even if backend failed)
       setLiveSession(null);
-      console.log('Live session stopped successfully');
     } catch (error: any) {
       console.error('Error stopping live:', error);
-      console.error('Error response:', error.response?.data);
-      alert(`Errore nell'interruzione della live: ${error.response?.data?.error || error.message}`);
+      // Force cleanup even on error
+      setLiveSession(null);
     }
   };
 
