@@ -112,6 +112,21 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Platform Description */}
+          <div className="retro-card rounded-lg p-6 mb-6 border-2 border-[var(--bull-green)]/30">
+            <div className="text-center">
+              <p className="text-[var(--bull-green)] text-lg leading-relaxed mb-3">
+                <span className="neon-green font-bold">📊 Social Trading</span> dove i migliori trader condividono strategie in tempo reale
+              </p>
+              <p className="text-[var(--cyan-neon)] text-sm leading-relaxed">
+                🎥 <span className="font-semibold">Streaming Live</span> delle sessioni di trading •
+                💬 <span className="font-semibold">Chat in tempo reale</span> con la community •
+                📈 <span className="font-semibold">Analisi di mercato</span> condivise •
+                🏆 <span className="font-semibold">Impara dai pro</span>
+              </p>
+            </div>
+          </div>
+
           <CreatePost onPostCreated={loadPosts} />
         </>
       )}
